@@ -22,12 +22,20 @@ public class DatabaseConfig {
         }
     }
 
+    /**
+     * Checks if the database file exists
+     * @return true if database file exists, false otherwise
+     */
+    public static boolean databaseExists() {
+        File dbFile = new File(DB_NAME);
+        return dbFile.exists();
+    }
+
     public static Connection getConnection() throws SQLException {
         if (connection == null || connection.isClosed()) {
             try {
                 // Check if database file exists
-                File dbFile = new File(DB_NAME);
-                boolean needsInit = !dbFile.exists();
+                boolean needsInit = !databaseExists();
                 
                 // Create connection
                 System.out.println("Attempting to connect to database at: " + DB_URL);
@@ -38,8 +46,6 @@ public class DatabaseConfig {
                 
                 if (needsInit) {
                     System.out.println("Initializing new database...");
-                    initializeDatabase();
-                } else {
                     initializeDatabase();
                 }
             } catch (SQLException e) {

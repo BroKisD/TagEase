@@ -579,6 +579,63 @@ public class MainView {
         alert.showAndWait();
     }
 
+    /**
+     * Highlights files in the table that are missing from the file system.
+     * Missing files will be highlighted in yellow.
+     * 
+     * @param missingFilePaths List of file paths that are missing
+     */
+    // For the missing files warning - modify the highlightMissingFiles method:
+public void highlightMissingFiles(List<String> missingFilePaths) {
+    if (missingFilePaths == null || missingFilePaths.isEmpty()) {
+        return;
+    }
+    
+    // Apply custom row factory to highlight missing files
+    fileTable.setRowFactory(tv -> {
+        TableRow<TaggedFile> row = new TableRow<>();
+        row.itemProperty().addListener((obs, oldItem, newItem) -> {
+            if (newItem != null && missingFilePaths.contains(newItem.getFilePath())) {
+                // File is missing - highlight in red
+                row.setStyle("-fx-background-color: #FF0000;");
+            } else {
+                // File exists - use default style
+                row.setStyle("");
+            }
+            
+            // Fix for the file opening issue - add double-click handler here
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && (!row.isEmpty())) {
+                    TaggedFile file = row.getItem();
+                    openFile(file);
+                }
+            });
+        });
+        return row;
+    });
+    
+    // Refresh the table to apply the highlighting
+    fileTable.refresh();
+    
+    // Show a notification about missing files that includes the filenames
+    if (!missingFilePaths.isEmpty()) {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("Missing Files");
+        alert.setHeaderText("Some files are missing");
+        
+        // Build a list of missing filenames to display
+        StringBuilder missingFilesText = new StringBuilder("The following files are missing:\n\n");
+        for (String filePath : missingFilePaths) {
+            File file = new File(filePath);
+            missingFilesText.append("• ").append(file.getName()).append("\n");
+        }
+        missingFilesText.append("\nThey may have been moved, renamed, or deleted.");
+        
+        alert.setContentText(missingFilesText.toString());
+        alert.show();
+    }
+}
+
     public void show() {
         stage.show();
     }
