@@ -1,20 +1,45 @@
 package com.tagease.view;
 
+import java.io.File;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import com.tagease.controller.TagController;
 import com.tagease.model.TaggedFile;
-import javafx.collections.*;
-import javafx.geometry.*;
+
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.TableCell;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableRow;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.layout.*;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-import java.io.*;
-import java.time.*;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.stream.Collectors;
 
 public class MainView {
     // UI Components
@@ -211,7 +236,7 @@ public class MainView {
         selectedTagsPane.getChildren().clear();
         for (String tag : selectedTags) {
             Label tagLabel = new Label(tag);
-            tagLabel.setStyle("-fx-background-color: #e0e0e0; -fx-padding: 2 5; -fx-border-radius: 3;");
+            tagLabel.setStyle("-fx-background-color: #e0e9e9; -fx-padding: 2 5; -fx-border-radius: 5;");
             selectedTagsPane.getChildren().add(tagLabel);
         }
     }
