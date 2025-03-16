@@ -1,0 +1,195 @@
+/* Dark theme colors */
+.root {
+    -fx-background-color: #1e1e1e;
+    background-color: #1e1e1e;
+    -fx-text-fill: #e0e0e0;
+    color: #e0e0e0;
+}
+
+.titled-pane {
+    -fx-background-color: #2d2d2d;
+    background-color: #2d2d2d;
+    -fx-border-color: #3d3d3d;
+    border-color: #3d3d3d;
+    -fx-border-width: 1;
+    border-width: 1px;
+    -fx-text-fill: #e0e0e0;
+    color: #e0e0e0;
+}
+
+.titled-pane > .title {
+    -fx-background-color: #2d2d2d;
+    background-color: #2d2d2d;
+    -fx-border-color: transparent;
+    border-color: transparent;
+    -fx-padding: 10;
+    padding: 10px;
+}
+
+/* Move arrow to the right */
+.titled-pane > .title > .arrow-button {
+    -fx-padding: 0;
+    padding: 0;
+    -fx-translate-x: 200;
+}
+
+.titled-pane > .title > .arrow-button > .arrow {
+    -fx-background-color: #909090;
+    background-color: #909090;
+}
+
+.titled-pane > .title > .label {
+    -fx-padding: 0 30 0 0;
+    padding: 0 30px 0 0;
+}
+
+.titled-pane:expanded > .title {
+    -fx-background-color: #353535;
+    background-color: #353535;
+}
+
+.titled-pane > .content {
+    -fx-background-color: #353535;
+    background-color: #353535;
+    -fx-border-color: transparent;
+    border-color: transparent;
+    -fx-padding: 10;
+    padding: 10px;
+}
+
+.file-panel {
+    -fx-background-color: #2d2d2d;
+    background-color: #2d2d2d;
+    -fx-border-color: #3d3d3d;
+    border-color: #3d3d3d;
+    -fx-border-width: 1;
+    border-width: 1px;
+    -fx-border-radius: 4;
+    border-radius: 4px;
+}
+
+.tag-box {
+    -fx-background-color: #454545;
+    background-color: #454545;
+    -fx-background-radius: 3;
+    border-radius: 3px;
+    -fx-border-radius: 3;
+    -fx-border-color: #555555;
+    border-color: #555555;
+    -fx-padding: 2 5;
+    padding: 2px 5px;
+    -fx-text-fill: #e0e0e0;
+    color: #e0e0e0;
+}
+
+.button {
+    -fx-background-color: #3d3d3d;
+    background-color: #3d3d3d;
+    -fx-text-fill: #e0e0e0;
+    color: #e0e0e0;
+    -fx-border-color: transparent;
+    border-color: transparent;
+    -fx-border-radius: 4;
+    border-radius: 4px;
+    -fx-padding: 5 10;
+    padding: 5px 10px;
+    -fx-cursor: hand;
+    cursor: pointer;
+}
+
+.button:hover {
+    -fx-background-color: #4d4d4d;
+    background-color: #4d4d4d;
+}
+
+.button:pressed {
+    -fx-background-color: #5d5d5d;
+    background-color: #5d5d5d;
+}
+
+.action-button {
+    -fx-background-color: #3d3d3d;
+    background-color: #3d3d3d;
+    -fx-text-fill: #e0e0e0;
+    color: #e0e0e0;
+    -fx-border-radius: 4;
+    border-radius: 4px;
+    -fx-padding: 5 10;
+    padding: 5px 10px;
+}
+
+.action-button:hover {
+    -fx-background-color: #4d4d4d;
+    background-color: #4d4d4d;
+}
+
+.delete-button {
+    -fx-background-color: #c53030;
+    background-color: #c53030;
+    -fx-text-fill: white;
+    color: white;
+    -fx-border-radius: 4;
+    border-radius: 4px;
+    -fx-padding: 5 10;
+    padding: 5px 10px;
+}
+
+.delete-button:hover {
+    -fx-background-color: #e53e3e;
+    background-color: #e53e3e;
+}
+
+/* Search section styling */
+.search-box {
+    -fx-background-color: #3d3d3d;
+    background-color: #3d3d3d;
+    -fx-text-fill: #e0e0e0;
+    color: #e0e0e0;
+    -fx-border-color: #4d4d4d;
+    border-color: #4d4d4d;
+    -fx-border-radius: 4;
+    border-radius: 4px;
+    -fx-padding: 5 10;
+    padding: 5px 10px;
+}
+
+.combo-box {
+    -fx-background-color: #3d3d3d;
+    background-color: #3d3d3d;
+    -fx-text-fill: #e0e0e0;
+    color: #e0e0e0;
+    -fx-border-color: #4d4d4d;
+    border-color: #4d4d4d;
+}
+
+.combo-box .list-cell {
+    -fx-background-color: #3d3d3d;
+    background-color: #3d3d3d;
+    -fx-text-fill: #e0e0e0;
+    color: #e0e0e0;
+}
+
+.combo-box .list-view {
+    -fx-background-color: #2d2d2d;
+    background-color: #2d2d2d;
+    -fx-border-color: #4d4d4d;
+    border-color: #4d4d4d;
+}
+
+.text-field {
+    -fx-background-color: #3d3d3d;
+    background-color: #3d3d3d;
+    -fx-text-fill: #e0e0e0;
+    color: #e0e0e0;
+    -fx-border-color: #4d4d4d;
+    border-color: #4d4d4d;
+    -fx-border-radius: 4;
+    border-radius: 4px;
+    -fx-padding: 5 10;
+    padding: 5px 10px;
+}
+
+.label {
+    -fx-text-fill: #e0e0e0;
+    color: #e0e0e0;
+}
