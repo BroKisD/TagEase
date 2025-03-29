@@ -26,38 +26,42 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.Control;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.DialogPane;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
+import javafx.scene.control.Tooltip;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
 public class MainView {
     // UI Components
-    private final TagController controller;
-    private final Stage stage;
-    private VBox fileListContainer;
-    private ScrollPane fileListScrollPane;
-    private TextField searchField;
-    private ComboBox<String> searchCriteriaBox;
-    private ComboBox<String> tagFilterBox;
+    private Stage stage;
+    private TagController controller;
+    private Set<String> selectedTags = new HashSet<>();
     private FlowPane selectedTagsPane;
+    private VBox fileListContainer;
+    private String searchTerm = "";
+    private String searchOption = "File Name";
 
     // Data
-    private final ObservableList<TaggedFile> filesList;
     private static final List<String> PREDEFINED_TAGS = List.of(
         "New", "Reference", "15m Test", "Midterm Exam", "Final Exam", "Done", "In Progress"
     );
     private static final String DEFAULT_TAG = "New";
-    private Set<String> selectedTags = new HashSet<>();
+    private ObservableList<TaggedFile> filesList;
 
     public MainView(Stage stage, TagController controller) {
         this.stage = stage;
@@ -69,22 +73,66 @@ public class MainView {
 
     private void initializeUI() {
         BorderPane root = new BorderPane();
-        root.setPadding(new Insets(10));
         root.getStyleClass().add("root");
 
-        // Create the main layout
-        VBox mainLayout = new VBox(10);
-        mainLayout.setPadding(new Insets(10));
+        // Create the main layout with a sidebar-content structure (Postman-like)
+        HBox mainLayout = new HBox(0);
+        mainLayout.setPrefHeight(Region.USE_COMPUTED_SIZE);
+        mainLayout.setFillHeight(true);
+        
+        // Create left sidebar with toolbar buttons
+        VBox sidebar = new VBox(5);
+        sidebar.getStyleClass().add("sidebar");
+        
+        Label appTitle = new Label("TagEase");
+        appTitle.getStyleClass().add("app-title");
+        appTitle.setPadding(new Insets(10, 0, 20, 10));
+        
+        // Add File button with icon
+        Button addFileButton = new Button("Add File");
+        addFileButton.getStyleClass().add("sidebar-button");
+        addFileButton.setMaxWidth(Double.MAX_VALUE);
+        ImageView addFileIcon = createIcon("src/main/resources/Image/file_338043.png", 16);
+        if (addFileIcon != null) {
+            addFileButton.setGraphic(addFileIcon);
+            addFileButton.setGraphicTextGap(10);
+        }
+        addFileButton.setOnAction(e -> addFile());
+        
+        // Manage Tags button with icon
+        Button manageTagsButton = new Button("Manage Tags");
+        manageTagsButton.getStyleClass().add("sidebar-button");
+        manageTagsButton.setMaxWidth(Double.MAX_VALUE);
+        ImageView manageTagsIcon = createIcon("src/main/resources/Image/file_1346913.png", 16);
+        if (manageTagsIcon != null) {
+            manageTagsButton.setGraphic(manageTagsIcon);
+            manageTagsButton.setGraphicTextGap(10);
+        }
+        manageTagsButton.setOnAction(e -> showTagManagementWindow());
+        
+        sidebar.getChildren().addAll(appTitle, addFileButton, manageTagsButton);
+        mainLayout.getChildren().add(sidebar);
+        
+        // Create the content area
+        BorderPane contentArea = new BorderPane();
+        contentArea.setPrefHeight(Region.USE_COMPUTED_SIZE);
+        
+        // Create search and filter section at the top of content area
+        VBox searchAndFilterContainer = createSearchSection();
+        contentArea.setTop(searchAndFilterContainer);
 
-        // Create sections
-        VBox searchContainer = createSearchSection();
-        root.setTop(searchContainer);
-
+        // Create file list in the center
         VBox centerContent = createCenterContent();
-        root.setCenter(centerContent);
+        contentArea.setCenter(centerContent);
+        
+        // Add content area to main layout
+        mainLayout.getChildren().add(contentArea);
+        HBox.setHgrow(contentArea, Priority.ALWAYS);
+        
+        root.setCenter(mainLayout);
 
         // Create scene
-        Scene scene = new Scene(root, 800, 600);
+        Scene scene = new Scene(root, 900, 700);
         
         // Load custom styles with specific exception handling
         try {
@@ -102,26 +150,13 @@ public class MainView {
         
         stage.setTitle("TagEase - File Tagging System");
         stage.setScene(scene);
-
-        // Create toolbar
-        createToolbar();
+        stage.setMinWidth(800);
+        stage.setMinHeight(600);
+        
+        // Set the application to open in full screen by default
+        stage.setMaximized(true);
 
         refreshTable();
-    }
-
-    private void createToolbar() {
-        HBox toolbar = new HBox(10);
-        toolbar.setPadding(new Insets(10));
-
-        Button addFileButton = new Button("Add File");
-        addFileButton.setOnAction(e -> addFile());
-
-        Button manageTagsButton = new Button("Manage Tags");
-        manageTagsButton.setOnAction(e -> showTagManagementWindow());
-
-        toolbar.getChildren().addAll(addFileButton, manageTagsButton);
-        BorderPane root = (BorderPane) stage.getScene().getRoot();
-        root.setBottom(toolbar);
     }
 
     private void showTagManagementWindow() {
@@ -174,173 +209,195 @@ public class MainView {
 
     private VBox createSearchSection() {
         VBox searchContainer = new VBox(10);
-        searchContainer.setPadding(new Insets(10));
-
-        // Search box on top
+        searchContainer.getStyleClass().add("search-container");
+        searchContainer.setPadding(new Insets(15));
+        
+        // Search box with icon
         HBox searchBox = new HBox(10);
         searchBox.setAlignment(Pos.CENTER_LEFT);
-
-        Label searchLabel = new Label("Search:");
-        searchField = new TextField();
-        searchField.setPromptText("Enter search terms...");
-        searchField.setPrefWidth(300);
-
-        // Add search by option
-        Label searchByLabel = new Label("Search by:");
-        searchCriteriaBox = new ComboBox<>();
-        searchCriteriaBox.getItems().addAll("File Name", "Tags");
-        searchCriteriaBox.setValue("File Name");
-
-        searchBox.getChildren().addAll(searchLabel, searchField, searchByLabel, searchCriteriaBox);
-
-        // Filter controls
-        HBox filterControls = new HBox(10);
-        filterControls.setAlignment(Pos.CENTER_LEFT);
-
-        // Filter by tags
-        Label filterTagLabel = new Label("Filter by tags:");
-        filterTagLabel.setMinWidth(80);
-        tagFilterBox = new ComboBox<>();
-        tagFilterBox.setPromptText("Select tags");
-        tagFilterBox.setPrefWidth(200);
-        tagFilterBox.setMinWidth(100);
-
-        // Selected tags visualization
-        selectedTagsPane = new FlowPane();
+        
+        // Search icon
+        ImageView searchIcon = createIcon("src/main/resources/Image/magnifier_868231.png", 16);
+        Label searchLabel;
+        if (searchIcon != null) {
+            searchLabel = new Label("Search:", searchIcon);
+            searchLabel.setGraphicTextGap(5);
+        } else {
+            searchLabel = new Label("Search:");
+        }
+        searchLabel.getStyleClass().add("section-label");
+        
+        TextField searchField = new TextField();
+        searchField.setPromptText("Search by file name...");
+        searchField.getStyleClass().add("search-box");
+        HBox.setHgrow(searchField, Priority.ALWAYS);
+        
+        ComboBox<String> searchOptions = new ComboBox<>();
+        searchOptions.getItems().addAll("File Name", "Tags", "Path");
+        searchOptions.setValue("File Name");
+        searchOptions.getStyleClass().add("combo-box");
+        
+        searchBox.getChildren().addAll(searchLabel, searchField, searchOptions);
+        
+        // Filter section with enhanced styling
+        VBox filterContainer = new VBox(10);
+        filterContainer.getStyleClass().add("filter-container");
+        filterContainer.setPadding(new Insets(12));
+        
+        // Tag selection - now in a single row with Clear All button on the right
+        HBox tagSelectionBox = new HBox(10);
+        tagSelectionBox.setAlignment(Pos.CENTER_LEFT);
+        tagSelectionBox.getStyleClass().add("filter-header-item");
+        
+        // Filter icon
+        ImageView filterIcon = createIcon("src/main/resources/Image/filter_679890.png", 16);
+        Label filterLabel;
+        if (filterIcon != null) {
+            filterLabel = new Label("Filters:", filterIcon);
+            filterLabel.setGraphicTextGap(5);
+        } else {
+            filterLabel = new Label("Filters:");
+        }
+        filterLabel.getStyleClass().add("section-label");
+        
+        Label tagLabel = new Label("Tag:");
+        tagLabel.getStyleClass().add("field-label");
+        
+        // Enhanced tag dropdown
+        ComboBox<String> tagComboBox = new ComboBox<>();
+        tagComboBox.setPromptText("Select a tag");
+        tagComboBox.getStyleClass().add("combo-box");
+        HBox.setHgrow(tagComboBox, Priority.ALWAYS);
+        
+        // Populate tag dropdown with existing tags
+        Set<String> allTags = controller.getAllTags();
+        tagComboBox.getItems().addAll(allTags);
+        
+        Button clearAllButton = new Button("Clear All");
+        clearAllButton.getStyleClass().add("clear-button");
+        clearAllButton.setOnAction(e -> {
+            selectedTags.clear();
+            refreshTable();
+            updateSelectedTagsDisplay();
+        });
+        
+        // Add tag when selected from dropdown (no add button needed)
+        tagComboBox.setOnAction(e -> {
+            String selectedTag = tagComboBox.getValue();
+            if (selectedTag != null && !selectedTag.isEmpty() && !selectedTags.contains(selectedTag)) {
+                selectedTags.add(selectedTag);
+                refreshTable();
+                updateSelectedTagsDisplay();
+                tagComboBox.setValue(null); // Clear selection after adding
+            }
+        });
+        
+        // Add all components to the tag selection box in a single row
+        tagSelectionBox.getChildren().addAll(filterLabel, tagLabel, tagComboBox, clearAllButton);
+        
+        // Selected tags display
+        FlowPane selectedTagsPane = new FlowPane();
         selectedTagsPane.setHgap(5);
         selectedTagsPane.setVgap(5);
         selectedTagsPane.setPadding(new Insets(5));
-
-        Button clearTagsButton = new Button("Clear Filters");
-        clearTagsButton.setMinWidth(100);
-
-        Label selectedTagsLabel = new Label("Selected tags:");
-        selectedTagsLabel.setMinWidth(100);
-
-        filterControls.getChildren().addAll(
-            filterTagLabel, tagFilterBox, clearTagsButton,
-            selectedTagsLabel, selectedTagsPane
-        );
-
-        // Update selected tags visualization
-        updateSelectedTagsPane();
-
-        // Set up event handlers
-        tagFilterBox.setOnAction(e -> {
-            String selectedTag = tagFilterBox.getSelectionModel().getSelectedItem();
-            if (selectedTag != null && !selectedTags.contains(selectedTag)) {
-                selectedTags.add(selectedTag);
-                refreshTable();
-                updateSelectedTagsPane();
-                updateTagFilterBox();
-            }
-        });
-
-        clearTagsButton.setOnAction(e -> {
-            selectedTags.clear();
+        selectedTagsPane.getStyleClass().add("selected-tags-pane");
+        
+        // Add filter components to filter container
+        filterContainer.getChildren().addAll(tagSelectionBox, selectedTagsPane);
+        
+        // Store reference to update later
+        this.selectedTagsPane = selectedTagsPane;
+        
+        // Search field listener
+        searchField.textProperty().addListener((observable, oldValue, newValue) -> {
+            searchTerm = newValue;
             refreshTable();
-            updateSelectedTagsPane();
-            updateTagFilterBox();
         });
-
-        searchField.textProperty().addListener((obs, oldVal, newVal) -> performSearch());
-        searchCriteriaBox.setOnAction(e -> performSearch());
-
-        searchContainer.getChildren().addAll(searchBox, filterControls);
-
-        updateTagFilterBox();
+        
+        // Search option listener
+        searchOptions.valueProperty().addListener((observable, oldValue, newValue) -> {
+            searchOption = newValue;
+            refreshTable();
+        });
+        
+        // Add all components to search container
+        searchContainer.getChildren().addAll(searchBox, filterContainer);
+        
         return searchContainer;
     }
 
-    private void updateSelectedTagsPane() {
+    private void updateSelectedTagsDisplay() {
         selectedTagsPane.getChildren().clear();
+        
+        if (selectedTags.isEmpty()) {
+            Label noFiltersLabel = new Label("No active filters");
+            noFiltersLabel.setStyle("-fx-font-style: italic; -fx-text-fill: #909090;");
+            selectedTagsPane.getChildren().add(noFiltersLabel);
+            return;
+        }
+        
         for (String tag : selectedTags) {
-            HBox tagBox = new HBox(5);
-            tagBox.setAlignment(Pos.CENTER_LEFT);
-            tagBox.setPadding(new Insets(3, 8, 3, 8));
-            tagBox.setStyle("-fx-background-color: #e0e9e9; -fx-background-radius: 5; -fx-border-radius: 5; -fx-border-color: #c0c9c9;");
+            HBox tagChip = new HBox(5);
+            tagChip.getStyleClass().add("tag-chip");
+            tagChip.setAlignment(Pos.CENTER_LEFT);
             
             Label tagLabel = new Label(tag);
-            tagLabel.setStyle("-fx-text-fill: #333333;");
             
             Button removeButton = new Button("×");
-            removeButton.setStyle("-fx-background-color: transparent; -fx-text-fill: #666666; -fx-padding: 0 0 0 5; -fx-font-weight: bold;");
-            removeButton.setCursor(Cursor.HAND);
+            removeButton.getStyleClass().add("close-button");
             removeButton.setOnAction(e -> {
                 selectedTags.remove(tag);
                 refreshTable();
-                updateSelectedTagsPane();
-                updateTagFilterBox();
+                updateSelectedTagsDisplay();
             });
             
-            tagBox.getChildren().addAll(tagLabel, removeButton);
-            selectedTagsPane.getChildren().add(tagBox);
+            tagChip.getChildren().addAll(tagLabel, removeButton);
+            selectedTagsPane.getChildren().add(tagChip);
         }
     }
 
     private void updateTagFilterBox() {
         try {
             Set<String> allTags = controller.getAllTags();
-            tagFilterBox.getItems().setAll(allTags);
-            tagFilterBox.getSelectionModel().clearSelection();
         } catch (RuntimeException e) {
             showErrorDialog("Error", "Failed to load tags", e.getMessage());
         }
     }
 
     private VBox createCenterContent() {
-        VBox tableBox = new VBox(5);
-        tableBox.getStyleClass().add("section-box");
+        VBox centerContent = new VBox(10);
+        centerContent.setPadding(new Insets(10));
+        centerContent.setFillWidth(true);
         
         // Create file list container
         fileListContainer = new VBox(5);
         fileListContainer.setPadding(new Insets(10));
+        fileListContainer.setFillWidth(true);
         
         // Create scroll pane to contain the file list
-        fileListScrollPane = new ScrollPane(fileListContainer);
+        ScrollPane fileListScrollPane = new ScrollPane(fileListContainer);
         fileListScrollPane.setFitToWidth(true);
-        fileListScrollPane.setPrefHeight(400);
+        fileListScrollPane.setFitToHeight(true); // Make it fill available height
+        fileListScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        fileListScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        fileListScrollPane.setPrefHeight(Region.USE_COMPUTED_SIZE); // Dynamic height
+        fileListScrollPane.setMinHeight(400); // Minimum height
         
-        Label noFilesLabel = new Label("No files found");
-        noFilesLabel.setStyle("-fx-font-style: italic; -fx-text-fill: gray;");
+        // Make the scroll pane expand to fill available space
+        VBox.setVgrow(fileListScrollPane, Priority.ALWAYS);
         
-        tableBox.getChildren().addAll(fileListScrollPane);
-        return tableBox;
+        centerContent.getChildren().add(fileListScrollPane);
+        
+        // Make the center content expand to fill available space
+        VBox.setVgrow(centerContent, Priority.ALWAYS);
+        
+        refreshTable();
+        
+        return centerContent;
     }
 
     private void performSearch() {
-        String searchText = searchField.getText().toLowerCase();
-        String searchCriteria = searchCriteriaBox.getValue();
-        
-        List<TaggedFile> allFiles = controller.getAllFiles();
-        List<TaggedFile> filteredFiles = new ArrayList<>();
-        
-        for (TaggedFile file : allFiles) {
-            boolean matches = false;
-            switch (searchCriteria) {
-                case "File Name":
-                    matches = file.getFileName().toLowerCase().contains(searchText);
-                    break;
-                case "Tags":
-                    matches = file.getTags().stream()
-                        .anyMatch(tag -> tag.toLowerCase().contains(searchText));
-                    break;
-            }
-            if (matches) {
-                filteredFiles.add(file);
-            }
-        }
-        
-        if (filteredFiles.isEmpty()) {
-            Label noResultsLabel = new Label("No Results Found");
-            noResultsLabel.setStyle("-fx-font-style: italic; -fx-text-fill: gray;");
-            fileListContainer.getChildren().clear();
-            fileListContainer.getChildren().add(noResultsLabel);
-        } else {
-            fileListContainer.getChildren().clear();
-            filesList.setAll(filteredFiles);
-            updateFileListView();
-        }
+        refreshTable();
     }
 
     private void addFile() {
@@ -453,6 +510,7 @@ public class MainView {
             tagBox.getStyleClass().add("tag-box");
             
             Label tagLabel = new Label(tag);
+            
             Button removeButton = new Button("×");
             removeButton.getStyleClass().add("remove-tag-button");
             removeButton.setOnAction(e -> {
@@ -524,28 +582,43 @@ public class MainView {
 
     private void refreshTable() {
         List<TaggedFile> files;
-        if (selectedTags.isEmpty()) {
-            files = controller.getAllFiles();
-        } else {
+        
+        if (!selectedTags.isEmpty()) {
             files = controller.getFilesByTags(selectedTags);
+        } else {
+            files = controller.getAllFiles();
         }
-
-        // Apply search filter
-        String searchText = searchField.getText().toLowerCase();
-        String searchCriteria = searchCriteriaBox.getValue();
-        List<TaggedFile> filteredFiles = files.stream()
-            .filter(file -> {
-                if (searchCriteria.equals("File Name")) {
-                    return file.getFileName().toLowerCase().contains(searchText);
-                } else {
+        
+        // Apply search filter if search term is not empty
+        if (searchTerm != null && !searchTerm.isEmpty()) {
+            String term = searchTerm.toLowerCase();
+            files = files.stream().filter(file -> {
+                if (searchOption.equals("File Name")) {
+                    return file.getFileName().toLowerCase().contains(term);
+                } else if (searchOption.equals("Tags")) {
                     return file.getTags().stream()
-                        .anyMatch(tag -> tag.toLowerCase().contains(searchText));
+                            .anyMatch(tag -> tag.toLowerCase().contains(term));
+                } else if (searchOption.equals("Path")) {
+                    return file.getFilePath().toLowerCase().contains(term);
                 }
-            })
-            .collect(Collectors.toList());
-
-        filesList.setAll(filteredFiles);
-        updateFileListView();
+                return false;
+            }).collect(Collectors.toList());
+        }
+        
+        // Clear and rebuild file list
+        fileListContainer.getChildren().clear();
+        
+        if (files.isEmpty()) {
+            Label noFilesLabel = new Label("No files found matching your criteria");
+            noFilesLabel.getStyleClass().add("no-files-label");
+            noFilesLabel.setPadding(new Insets(20));
+            fileListContainer.getChildren().add(noFilesLabel);
+        } else {
+            for (TaggedFile file : files) {
+                TitledPane filePanel = createFilePanel(file);
+                fileListContainer.getChildren().add(filePanel);
+            }
+        }
     }
     
     private void updateFileListView() {
@@ -565,14 +638,43 @@ public class MainView {
     
     private TitledPane createFilePanel(TaggedFile file) {
         // Create the main content for the collapsed state
-        HBox header = new HBox(10);
+        HBox header = new HBox();
         header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(0));
-        header.setMaxWidth(700); // Limit width to prevent arrow overlap
+        header.setPadding(new Insets(5, 15, 5, 10)); // Consistent padding
+        header.setPrefWidth(Control.USE_COMPUTED_SIZE); // Make panel fit window width
+        header.setMaxWidth(Double.MAX_VALUE); // Allow expansion to full width
+        header.setSpacing(0); // No spacing between elements - we'll control it manually
         
-        // File name label
+        // Status indicator based on tags
+        Region statusIndicator = new Region();
+        statusIndicator.getStyleClass().addAll("status-indicator");
+        statusIndicator.setMinWidth(8);
+        statusIndicator.setPrefWidth(8);
+        statusIndicator.setMaxWidth(8);
+        
+        // Check if file exists
+        File fileObj = new File(file.getFilePath());
+        if (!fileObj.exists()) {
+            // Missing file - red indicator
+            statusIndicator.getStyleClass().add("status-missing");
+            // Also add missing-file class to the entire panel
+            header.getStyleClass().add("missing-file");
+        } else if (file.getTags().contains("Done")) {
+            statusIndicator.getStyleClass().add("status-done");
+        } else if (file.getTags().contains("In Progress")) {
+            statusIndicator.getStyleClass().add("status-in-progress");
+        } else {
+            statusIndicator.getStyleClass().add("status-new");
+        }
+        
+        // File name and tags container
+        HBox contentContainer = new HBox(10);
+        contentContainer.setAlignment(Pos.CENTER_LEFT);
+        contentContainer.setPadding(new Insets(0, 0, 0, 10)); // Add padding after status indicator
+        
+        // File name label with larger font
         Label fileNameLabel = new Label(file.getFileName());
-        fileNameLabel.setStyle("-fx-font-weight: bold;");
+        fileNameLabel.getStyleClass().add("file-name");
         fileNameLabel.setMaxWidth(300);
         
         // Tags flow pane
@@ -588,65 +690,62 @@ public class MainView {
             tagsPane.getChildren().add(tagLabel);
         }
         
-        // Add all components to the header
-        header.getChildren().addAll(fileNameLabel, tagsPane);
+        contentContainer.getChildren().addAll(fileNameLabel, tagsPane);
         
-        // Create the content for the expanded state
-        VBox expandedContent = new VBox(10);
-        expandedContent.setPadding(new Insets(10));
+        // Add spacer to push action buttons to the right
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
         
-        // File details
-        GridPane detailsGrid = new GridPane();
-        detailsGrid.setHgap(10);
-        detailsGrid.setVgap(5);
-        detailsGrid.setPadding(new Insets(5));
-        
-        // Created date
-        Label createdLabel = new Label("Created:");
-        createdLabel.setStyle("-fx-font-weight: bold;");
-        Label createdValueLabel = new Label(
-            file.getCreatedAt() != null 
-                ? DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(file.getCreatedAt())
-                : "N/A"
-        );
-        
-        // Last accessed date
-        Label accessedLabel = new Label("Last Accessed:");
-        accessedLabel.setStyle("-fx-font-weight: bold;");
-        Label accessedValueLabel = new Label(
-            file.getLastAccessedAt() != null 
-                ? DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(file.getLastAccessedAt())
-                : "N/A"
-        );
-        
-        // File path
-        Label pathLabel = new Label("Path:");
-        pathLabel.setStyle("-fx-font-weight: bold;");
-        Label pathValueLabel = new Label(file.getFilePath());
-        
-        // Add to grid
-        detailsGrid.add(createdLabel, 0, 0);
-        detailsGrid.add(createdValueLabel, 1, 0);
-        detailsGrid.add(accessedLabel, 0, 1);
-        detailsGrid.add(accessedValueLabel, 1, 1);
-        detailsGrid.add(pathLabel, 0, 2);
-        detailsGrid.add(pathValueLabel, 1, 2);
-        
-        // Action buttons
-        HBox actionButtons = new HBox(10);
+        // Action buttons with icons - all on the right with consistent placement
+        HBox actionButtons = new HBox(20);  // Increased spacing between buttons
         actionButtons.setAlignment(Pos.CENTER_RIGHT);
-        actionButtons.setPadding(new Insets(10, 0, 0, 0));
+        actionButtons.setPrefWidth(150);  // Fixed width for action buttons area
+        actionButtons.setMinWidth(150);   // Ensure minimum width
+        actionButtons.setMaxWidth(150);   // Ensure maximum width
         
-        Button editTagsButton = new Button("Edit Tags");
-        editTagsButton.getStyleClass().addAll("button", "action-button");
+        // Edit tags button with icon - fixed width and alignment
+        Button editTagsButton = new Button();
+        editTagsButton.getStyleClass().addAll("icon-button", "edit-button");
+        editTagsButton.setPrefWidth(30);
+        editTagsButton.setMinWidth(30);
+        editTagsButton.setMaxWidth(30);
+        ImageView editIcon = createIcon("src/main/resources/Image/pencil_505210.png", 16);
+        if (editIcon != null) {
+            editTagsButton.setGraphic(editIcon);
+        } else {
+            editTagsButton.setText("✏️");
+        }
+        editTagsButton.setTooltip(new Tooltip("Edit Tags"));
         editTagsButton.setOnAction(e -> editFileTags(file));
         
-        Button openFileButton = new Button("Open File");
-        openFileButton.getStyleClass().addAll("button", "action-button");
+        // Open file button with icon - fixed width and alignment
+        Button openFileButton = new Button();
+        openFileButton.getStyleClass().addAll("icon-button", "open-button");
+        openFileButton.setPrefWidth(30);
+        openFileButton.setMinWidth(30);
+        openFileButton.setMaxWidth(30);
+        ImageView openIcon = createIcon("src/main/resources/Image/folder_3767084.png", 16);
+        if (openIcon != null) {
+            openFileButton.setGraphic(openIcon);
+        } else {
+            openFileButton.setText("📁");
+        }
+        openFileButton.setTooltip(new Tooltip("Open File"));
         openFileButton.setOnAction(e -> openFile(file));
         
-        Button deleteFileButton = new Button("Delete");
-        deleteFileButton.getStyleClass().addAll("button", "delete-button");
+        // Delete button with icon - fixed width and alignment
+        Button deleteFileButton = new Button();
+        deleteFileButton.getStyleClass().addAll("icon-button", "delete-button");
+        deleteFileButton.setPrefWidth(30);
+        deleteFileButton.setMinWidth(30);
+        deleteFileButton.setMaxWidth(30);
+        ImageView deleteIcon = createIcon("src/main/resources/Image/trash_1161747.png", 16);
+        if (deleteIcon != null) {
+            deleteFileButton.setGraphic(deleteIcon);
+        } else {
+            deleteFileButton.setText("🗑️");
+        }
+        deleteFileButton.setTooltip(new Tooltip("Delete"));
         deleteFileButton.setOnAction(e -> {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
             alert.setTitle("Delete File");
@@ -667,8 +766,58 @@ public class MainView {
         
         actionButtons.getChildren().addAll(editTagsButton, openFileButton, deleteFileButton);
         
+        // Add all components to the header with precise control over layout
+        header.getChildren().addAll(statusIndicator, contentContainer, spacer, actionButtons);
+        
+        // Create the content for the expanded state
+        VBox expandedContent = new VBox(10);
+        expandedContent.setPadding(new Insets(15, 10, 10, 10));
+        
+        // File details
+        GridPane detailsGrid = new GridPane();
+        detailsGrid.setHgap(15);
+        detailsGrid.setVgap(8);
+        detailsGrid.setPadding(new Insets(5));
+        
+        // Created date
+        Label createdLabel = new Label("Created:");
+        createdLabel.getStyleClass().add("file-metadata");
+        createdLabel.setStyle("-fx-font-weight: bold;");
+        Label createdValueLabel = new Label(
+            file.getCreatedAt() != null 
+                ? DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(file.getCreatedAt())
+                : "N/A"
+        );
+        createdValueLabel.getStyleClass().add("file-metadata");
+        
+        // Last accessed date
+        Label accessedLabel = new Label("Last Accessed:");
+        accessedLabel.getStyleClass().add("file-metadata");
+        accessedLabel.setStyle("-fx-font-weight: bold;");
+        Label accessedValueLabel = new Label(
+            file.getLastAccessedAt() != null 
+                ? DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(file.getLastAccessedAt())
+                : "N/A"
+        );
+        accessedValueLabel.getStyleClass().add("file-metadata");
+        
+        // File path
+        Label pathLabel = new Label("Path:");
+        pathLabel.getStyleClass().add("file-metadata");
+        pathLabel.setStyle("-fx-font-weight: bold;");
+        Label pathValueLabel = new Label(file.getFilePath());
+        pathValueLabel.getStyleClass().add("file-metadata");
+        
+        // Add to grid
+        detailsGrid.add(createdLabel, 0, 0);
+        detailsGrid.add(createdValueLabel, 1, 0);
+        detailsGrid.add(accessedLabel, 0, 1);
+        detailsGrid.add(accessedValueLabel, 1, 1);
+        detailsGrid.add(pathLabel, 0, 2);
+        detailsGrid.add(pathValueLabel, 1, 2);
+        
         // Add all to expanded content
-        expandedContent.getChildren().addAll(detailsGrid, actionButtons);
+        expandedContent.getChildren().add(detailsGrid);
         
         // Create titled pane
         TitledPane filePanel = new TitledPane();
@@ -678,6 +827,7 @@ public class MainView {
         filePanel.setText(null); // Remove default text
         filePanel.setUserData(file); // Store the file object for reference
         filePanel.getStyleClass().add("file-panel");
+        filePanel.setMaxWidth(Double.MAX_VALUE); // Make panel expand to full width
         
         return filePanel;
     }
@@ -728,8 +878,8 @@ public class MainView {
                 if (filePanel.getUserData() instanceof TaggedFile) {
                     TaggedFile file = (TaggedFile) filePanel.getUserData();
                     if (missingFilePaths.contains(file.getFilePath())) {
-                        // File is missing - highlight in red
-                        filePanel.setStyle("-fx-border-color: #ff0000; -fx-border-radius: 5; -fx-background-color: #ffeeee;");
+                        // File is missing - apply missing file CSS class
+                        filePanel.getStyleClass().add("missing-file-panel");
                     }
                 }
             }
@@ -756,5 +906,26 @@ public class MainView {
 
     public void show() {
         stage.show();
+    }
+
+    // Helper method to create an ImageView from an image file
+    private ImageView createIcon(String imagePath, int size) {
+        try {
+            File iconFile = new File(imagePath);
+            if (iconFile.exists()) {
+                Image image = new Image(iconFile.toURI().toString());
+                ImageView imageView = new ImageView(image);
+                imageView.setFitHeight(size);
+                imageView.setFitWidth(size);
+                imageView.setPreserveRatio(true);
+                return imageView;
+            } else {
+                System.err.println("Icon not found: " + imagePath);
+                return null;
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to load icon: " + e.getMessage());
+            return null;
+        }
     }
 }

@@ -1,4 +1,11 @@
-com\example\PrimaryController.class
-com\example\SecondaryController.class
+com/tagease/utils/HealthCheck$FilePathStatus.class
+com/tagease/database/TaggedFileDAO.class
+com/tagease/model/TaggedFile.class
+com/tagease/utils/HealthCheck$FileStatus.class
+com/tagease/App.class
+com/tagease/utils/HealthCheck$HealthCheckResult.class
+com/tagease/utils/HealthCheck.class
 module-info.class
-com\example\App.class
+com/tagease/view/MainView.class
+com/tagease/controller/TagController.class
+com/tagease/database/DatabaseConfig.class
