@@ -35,6 +35,23 @@
               <mainClass>com.tagease.App</mainClass>
             </configuration>
           </execution>
+          <execution>
+            <id>package</id>
+            <phase>package</phase>
+            <goals>
+              <goal>jlink</goal>
+            </goals>
+            <configuration>
+              <stripDebug>true</stripDebug>
+              <compress>2</compress>
+              <noHeaderFiles>true</noHeaderFiles>
+              <noManPages>true</noManPages>
+              <launcher>tagease</launcher>
+              <mainClass>com.tagease.App</mainClass>
+              <jlinkImageName>tagease-app</jlinkImageName>
+              <jlinkZipName>tagease-app</jlinkZipName>
+            </configuration>
+          </execution>
         </executions>
       </plugin>
       <plugin>
@@ -52,6 +69,16 @@
                   <mainClass>com.tagease.App</mainClass>
                 </transformer>
               </transformers>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
             </configuration>
           </execution>
         </executions>
@@ -59,8 +86,11 @@
     </plugins>
   </build>
   <properties>
-    <maven.compiler.target>17</maven.compiler.target>
+    <main.class>com.tagease.App</main.class>
     <maven.compiler.source>17</maven.compiler.source>
+    <main.module>com.tagease</main.module>
+    <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <javafx.version>13</javafx.version>
   </properties>
 </project>

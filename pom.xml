@@ -8,6 +8,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
+        <javafx.version>13</javafx.version>
+        <main.class>com.tagease.App</main.class>
+        <main.module>com.tagease</main.module>
     </properties>
     <dependencies>
         <dependency>
@@ -50,6 +53,24 @@
                             <mainClass>com.tagease.App</mainClass>
                         </configuration>
                     </execution>
+                    <execution>
+                        <!-- Configuration for packaging -->
+                        <id>package</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jlink</goal>
+                        </goals>
+                        <configuration>
+                            <stripDebug>true</stripDebug>
+                            <compress>2</compress>
+                            <noHeaderFiles>true</noHeaderFiles>
+                            <noManPages>true</noManPages>
+                            <launcher>tagease</launcher>
+                            <mainClass>com.tagease.App</mainClass>
+                            <jlinkImageName>tagease-app</jlinkImageName>
+                            <jlinkZipName>tagease-app</jlinkZipName>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -68,6 +89,16 @@
                                     <mainClass>com.tagease.App</mainClass>
                                 </transformer>
                             </transformers>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
                         </configuration>
                     </execution>
                 </executions>
