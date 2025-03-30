@@ -17,13 +17,21 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TagController {
-    private TaggedFileDAO fileDAO;
     private Connection connection;
+    protected TaggedFileDAO fileDAO;
 
     private static final int MAX_TAG_LENGTH = 50;
     private static final String TAG_REGEX = "^[a-zA-Z0-9 _-]+$";
 
     public TagController() {
+        initializeDatabase();
+    }
+    
+    /**
+     * Initializes the database connection and DAO.
+     * This method is extracted to make the class more testable.
+     */
+    protected void initializeDatabase() {
         try {
             this.connection = DatabaseConfig.getConnection();
             this.fileDAO = new TaggedFileDAO(connection);
@@ -255,7 +263,7 @@ public class TagController {
         }
     }
 
-    private void showErrorDialog(String title, String header, String content) {
+    protected void showErrorDialog(String title, String header, String content) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle(title);
         alert.setHeaderText(header);

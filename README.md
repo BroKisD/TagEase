@@ -44,3 +44,25 @@ TagEase stores its database in a file named `tagease.db` in the same directory w
 ## Support
 
 If you encounter any issues or have questions, please create an issue on the GitHub repository or contact the developer.
+
+## Testing
+
+TagEase includes a comprehensive automated test suite built with JUnit 5, Mockito, and TestFX. The test suite covers:
+
+- **Unit Tests**: Testing individual components in isolation
+- **Integration Tests**: Testing interactions between components
+- **Performance Tests**: Measuring application performance metrics
+
+For detailed instructions on running and extending the test suite, see [TESTING.md](TESTING.md).
+
+### Running Tests
+
+To run all tests:
+```bash
+mvn test
+```
+
+To run a specific test class:
+```bash
+mvn test -Dtest=TagControllerTest
+```

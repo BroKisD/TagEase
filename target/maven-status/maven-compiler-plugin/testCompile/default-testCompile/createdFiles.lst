@@ -1,0 +1,6 @@
+com/tagease/model/TaggedFileTest.class
+com/tagease/database/TaggedFileDAOIntegrationTest.class
+com/tagease/controller/TagControllerTest.class
+com/tagease/controller/TagControllerTest$1.class
+com/tagease/model/TagTest.class
+com/tagease/performance/StartupPerformanceTest.class
