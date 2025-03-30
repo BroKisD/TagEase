@@ -407,7 +407,7 @@ public class MainView {
         HBox.setHgrow(sortBox, Priority.SOMETIMES);
         
         // Sort icon
-        ImageView sortIcon = createIcon("src/main/resources/Image/sort_3126622.png", 24);
+        ImageView sortIcon = createIcon("src/main/resources/Image/swap_5296690.png", 24);
         Label sortLabel;
         if (sortIcon != null) {
             sortLabel = new Label("Sort by:", sortIcon);
