@@ -2,12 +2,11 @@
 
 # This script creates a Linux DEB installer for TagEase
 
-# First, build the application with Maven
-echo "Building TagEase with Maven..."
-mvn clean package
-
-# Copy the JAR file with a more descriptive name
-cp target/demo-1.0-SNAPSHOT.jar target/TagEase-1.0.jar
+# Ensure we have the JAR file
+if [ ! -f "target/TagEase-1.0.jar" ]; then
+  echo "Error: TagEase-1.0.jar not found. Run 'mvn clean package' first."
+  exit 1
+fi
 
 # Create a directory for the installer files
 mkdir -p installer
@@ -28,7 +27,6 @@ jpackage \
   --vendor "TagEase" \
   --description "A file tagging application" \
   --dest installer \
-  --java-options "-Xmx512m" \
-  --add-modules javafx.controls,javafx.fxml,javafx.graphics
+  --java-options "-Xmx512m"
 
 echo "Installer created in the 'installer' directory"
