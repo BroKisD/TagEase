@@ -75,7 +75,8 @@ public class DatabaseConfig {
             stmt.execute("""
                 CREATE TABLE IF NOT EXISTS tags (
                     tag_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    tag_name TEXT UNIQUE NOT NULL
+                    tag_name TEXT UNIQUE NOT NULL,
+                    color TEXT
                 )
             """);
 

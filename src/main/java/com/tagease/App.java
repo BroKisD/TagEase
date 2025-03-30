@@ -2,6 +2,7 @@ package com.tagease;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.io.File;
 
 import com.tagease.controller.TagController;
 import com.tagease.database.DatabaseConfig;
@@ -12,11 +13,22 @@ import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 public class App extends Application {
     @Override
     public void start(Stage primaryStage) throws Exception {
+        // Set application icon
+        try {
+            // Load the icon using the class loader
+            Image appIcon = new Image(App.class.getResourceAsStream("/Image/hash_12080727.png"));
+            primaryStage.getIcons().add(appIcon);
+        } catch (Exception e) {
+            System.err.println("Failed to load application icon: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
         // Check database existence before starting the application
         if (!checkDatabaseConnection()) {
             // If database connection failed, show error and exit

@@ -60,6 +60,7 @@
                     <include>**/*.css</include>
                     <include>**/*.fxml</include>
                     <include>**/*.properties</include>
+                    <include>**/*.png</include>
                 </includes>
             </resource>
         </resources>
