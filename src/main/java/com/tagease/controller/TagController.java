@@ -2,14 +2,19 @@ package com.tagease.controller;
 
 import com.tagease.database.DatabaseConfig;
 import com.tagease.database.TaggedFileDAO;
+import com.tagease.model.Tag;
 import com.tagease.model.TaggedFile;
 import javafx.scene.control.Alert;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class TagController {
     private TaggedFileDAO fileDAO;
@@ -148,28 +153,93 @@ public class TagController {
         }
     }
 
-    public void addTag(String tag) {
+    public void addTag(String tagName) {
         try {
+            validateTag(tagName);
+            Tag tag = new Tag(tagName);
             fileDAO.addTag(tag);
-        } catch (Exception e) {
-            showErrorDialog("Failed to add tag", "Failed to add tag", e.getMessage());
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to add tag: " + e.getMessage(), e);
         }
     }
 
-    public void removeTag(String tag) {
+    public void removeTag(String tagName) {
         try {
-            fileDAO.removeTag(tag);
-        } catch (Exception e) {
-            showErrorDialog("Failed to remove tag", "Failed to remove tag", e.getMessage());
+            fileDAO.deleteTag(tagName);
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to remove tag: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Updates the color of a tag.
+     * 
+     * @param tag The tag with the updated color
+     */
+    public void updateTagColor(Tag tag) {
+        try {
+            fileDAO.updateTagColor(tag);
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to update tag color: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Gets all tags with their colors.
+     * 
+     * @return A map of tag names to Tag objects
+     */
+    public Map<String, Tag> getAllTagsWithColors() {
+        try {
+            return fileDAO.getAllTagsWithColors();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to get tags with colors: " + e.getMessage(), e);
         }
     }
 
-    public List<String> getAllTagsList() {
+    /**
+     * Checks all files in the database and adds the "Missing" tag to those that don't exist.
+     */
+    public void checkForMissingFiles() {
         try {
-            return fileDAO.getAllTagsList();
+            List<TaggedFile> allFiles = getAllFiles();
+            boolean changesDetected = false;
+            
+            for (TaggedFile file : allFiles) {
+                File physicalFile = new File(file.getFilePath());
+                
+                // If file doesn't exist and doesn't already have the Missing tag
+                if (!physicalFile.exists() && !file.getTags().contains(Tag.TAG_MISSING)) {
+                    // Add the Missing tag
+                    Set<String> updatedTags = new HashSet<>(file.getTags());
+                    updatedTags.add(Tag.TAG_MISSING);
+                    file.setTags(updatedTags);
+                    
+                    // Update the file in the database
+                    fileDAO.updateFileTags(file);
+                    changesDetected = true;
+                }
+                
+                // If file exists but has the Missing tag, remove it
+                if (physicalFile.exists() && file.getTags().contains(Tag.TAG_MISSING)) {
+                    // Remove the Missing tag
+                    Set<String> updatedTags = file.getTags().stream()
+                            .filter(tag -> !tag.equals(Tag.TAG_MISSING))
+                            .collect(Collectors.toSet());
+                    file.setTags(updatedTags);
+                    
+                    // Update the file in the database
+                    fileDAO.updateFileTags(file);
+                    changesDetected = true;
+                }
+            }
+            
+            // Return whether any changes were made
+            if (changesDetected) {
+                System.out.println("Updated missing file tags");
+            }
         } catch (Exception e) {
-            showErrorDialog("Failed to retrieve tags", "Failed to retrieve tags", e.getMessage());
-            return new ArrayList<>();
+            System.err.println("Error checking for missing files: " + e.getMessage());
         }
     }
 

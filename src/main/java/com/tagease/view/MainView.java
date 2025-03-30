@@ -1,19 +1,9 @@
 package com.tagease.view;
 
-import java.io.File;
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import com.tagease.controller.TagController;
+import com.tagease.model.Tag;
 import com.tagease.model.TaggedFile;
-
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -21,30 +11,25 @@ import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Control;
-import javafx.scene.control.Dialog;
-import javafx.scene.control.DialogPane;
-import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextField;
-import javafx.scene.control.TitledPane;
-import javafx.scene.control.Tooltip;
+import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.FlowPane;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.stage.Stage;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class MainView {
     // UI Components
@@ -53,6 +38,7 @@ public class MainView {
     private Set<String> selectedTags = new HashSet<>();
     private FlowPane selectedTagsPane;
     private VBox fileListContainer;
+    private ListView<Object> tagFilterBox;
     private String searchTerm = "";
     private String searchOption = "File Name";
 
@@ -63,54 +49,44 @@ public class MainView {
     private static final String DEFAULT_TAG = "New";
     private ObservableList<TaggedFile> filesList;
 
+    // Add a field to track the current sort settings
+    private String currentSortOption = "File Name";
+    private boolean currentSortAscending = true;
+
+    // Add a field to track if the application is initializing
+    private boolean isInitializing = true;
+    
+    // Map to store tag colors
+    private Map<String, Tag> tagColorMap = new HashMap<>();
+
     public MainView(Stage stage, TagController controller) {
         this.stage = stage;
         this.controller = controller;
         this.filesList = FXCollections.observableArrayList();
         
-        initializeUI();
+        initialize();
     }
 
-    private void initializeUI() {
+    private void initialize() {
+        isInitializing = true;
+        
+        // Load tag colors
+        loadTagColors();
+        
+        // Check for missing files and update tags accordingly
+        controller.checkForMissingFiles();
+        
         BorderPane root = new BorderPane();
         root.getStyleClass().add("root");
 
-        // Create the main layout with a sidebar-content structure (Postman-like)
-        HBox mainLayout = new HBox(0);
-        mainLayout.setPrefHeight(Region.USE_COMPUTED_SIZE);
-        mainLayout.setFillHeight(true);
+        // Create the main horizontal layout
+        HBox mainLayout = new HBox();
+        mainLayout.getStyleClass().add("main-layout");
         
-        // Create left sidebar with toolbar buttons
-        VBox sidebar = new VBox(5);
-        sidebar.getStyleClass().add("sidebar");
+        // Create sidebar
+        VBox sidebar = createSidebar();
         
-        Label appTitle = new Label("TagEase");
-        appTitle.getStyleClass().add("app-title");
-        appTitle.setPadding(new Insets(10, 0, 20, 10));
-        
-        // Add File button with icon
-        Button addFileButton = new Button("Add File");
-        addFileButton.getStyleClass().add("sidebar-button");
-        addFileButton.setMaxWidth(Double.MAX_VALUE);
-        ImageView addFileIcon = createIcon("src/main/resources/Image/file_338043.png", 16);
-        if (addFileIcon != null) {
-            addFileButton.setGraphic(addFileIcon);
-            addFileButton.setGraphicTextGap(10);
-        }
-        addFileButton.setOnAction(e -> addFile());
-        
-        // Manage Tags button with icon
-        Button manageTagsButton = new Button("Manage Tags");
-        manageTagsButton.getStyleClass().add("sidebar-button");
-        manageTagsButton.setMaxWidth(Double.MAX_VALUE);
-        ImageView manageTagsIcon = createIcon("src/main/resources/Image/file_1346913.png", 16);
-        if (manageTagsIcon != null) {
-            manageTagsButton.setGraphic(manageTagsIcon);
-            manageTagsButton.setGraphicTextGap(10);
-        }
-        manageTagsButton.setOnAction(e -> showTagManagementWindow());
-        
-        sidebar.getChildren().addAll(appTitle, addFileButton, manageTagsButton);
+        // Add components to the main layout
         mainLayout.getChildren().add(sidebar);
         
         // Create the content area
@@ -120,7 +96,7 @@ public class MainView {
         // Create search and filter section at the top of content area
         VBox searchAndFilterContainer = createSearchSection();
         contentArea.setTop(searchAndFilterContainer);
-
+        
         // Create file list in the center
         VBox centerContent = createCenterContent();
         contentArea.setCenter(centerContent);
@@ -157,20 +133,41 @@ public class MainView {
         stage.setMaximized(true);
 
         refreshTable();
+        
+        // Make sure to update the selected tags display initially
+        updateSelectedTagsDisplay();
+        
+        // Set initialization complete
+        Platform.runLater(() -> {
+            isInitializing = false;
+        });
     }
 
     private void showTagManagementWindow() {
         Stage tagWindow = new Stage();
         tagWindow.setTitle("Manage Tags");
+        tagWindow.initModality(Modality.APPLICATION_MODAL);
 
-        VBox layout = new VBox(10);
-        layout.setPadding(new Insets(10));
+        VBox layout = new VBox(15);
+        layout.setPadding(new Insets(20));
+        layout.getStyleClass().add("custom-dialog");
 
+        // Title
+        Label titleLabel = new Label("Manage Tags");
+        titleLabel.getStyleClass().add("title-label");
+        
         // Add Tag Section
+        Label addTagLabel = new Label("Add New Tag");
+        addTagLabel.getStyleClass().add("section-label");
+        
         HBox addTagBox = new HBox(10);
+        addTagBox.setAlignment(Pos.CENTER_LEFT);
         TextField newTagField = new TextField();
         newTagField.setPromptText("Enter new tag");
+        newTagField.setPrefWidth(250);
+        
         Button addTagButton = new Button("Add Tag");
+        addTagButton.getStyleClass().add("ok-button");
         addTagButton.setOnAction(e -> {
             String newTag = newTagField.getText().trim();
             if (!newTag.isEmpty()) {
@@ -182,11 +179,18 @@ public class MainView {
         addTagBox.getChildren().addAll(newTagField, addTagButton);
 
         // Remove Tag Section
+        Label removeTagLabel = new Label("Remove Existing Tag");
+        removeTagLabel.getStyleClass().add("section-label");
+        
         HBox removeTagBox = new HBox(10);
+        removeTagBox.setAlignment(Pos.CENTER_LEFT);
         ComboBox<String> tagSelector = new ComboBox<>();
         tagSelector.setPromptText("Select tag to remove");
         tagSelector.setItems(FXCollections.observableArrayList(controller.getAllTags()));
+        tagSelector.setPrefWidth(250);
+        
         Button removeTagButton = new Button("Remove Tag");
+        removeTagButton.getStyleClass().add("cancel-button");
         removeTagButton.setOnAction(e -> {
             String selectedTag = tagSelector.getSelectionModel().getSelectedItem();
             if (selectedTag != null) {
@@ -197,14 +201,113 @@ public class MainView {
         });
         removeTagBox.getChildren().addAll(tagSelector, removeTagButton);
 
+        // Close button at the bottom
+        Button closeButton = new Button("Close");
+        closeButton.setPrefWidth(100);
+        closeButton.setOnAction(e -> tagWindow.close());
+        HBox buttonBox = new HBox(closeButton);
+        buttonBox.setAlignment(Pos.CENTER_RIGHT);
+        buttonBox.setPadding(new Insets(15, 0, 0, 0));
+
         layout.getChildren().addAll(
-            new Label("Add New Tag:"), addTagBox,
-            new Label("Remove Existing Tag:"), removeTagBox
+            titleLabel,
+            addTagLabel, addTagBox,
+            removeTagLabel, removeTagBox,
+            buttonBox
         );
 
-        Scene scene = new Scene(layout, 400, 200);
+        Scene scene = new Scene(layout, 450, 300);
+        scene.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
         tagWindow.setScene(scene);
-        tagWindow.show();
+        tagWindow.showAndWait();
+    }
+
+    private void updateTagFilterBox() {
+        try {
+            // Get all tags with colors
+            tagColorMap = controller.getAllTagsWithColors();
+            
+            // Update the filter box
+            Set<String> allTags = tagColorMap.keySet();
+            tagFilterBox.getItems().clear();
+            
+            for (String tagName : allTags) {
+                CheckBox checkBox = new CheckBox(tagName);
+                checkBox.setSelected(selectedTags.contains(tagName));
+                
+                // Get tag color
+                Tag tag = tagColorMap.get(tagName);
+                if (tag != null) {
+                    // Create a colored rectangle for the tag
+                    Rectangle colorRect = new Rectangle(12, 12);
+                    colorRect.setFill(tag.getColor());
+                    colorRect.setStroke(Color.GRAY);
+                    colorRect.setStrokeWidth(1);
+                    colorRect.setArcWidth(4);
+                    colorRect.setArcHeight(4);
+                    
+                    // Create an HBox with the color and checkbox
+                    HBox tagItem = new HBox(5, colorRect, checkBox);
+                    tagItem.setAlignment(Pos.CENTER_LEFT);
+                    
+                    // Add to the filter box
+                    tagFilterBox.getItems().add(tagItem);
+                } else {
+                    // Fallback if no color is found
+                    tagFilterBox.getItems().add(checkBox);
+                }
+                
+                checkBox.setOnAction(e -> {
+                    if (checkBox.isSelected()) {
+                        selectedTags.add(tagName);
+                    } else {
+                        selectedTags.remove(tagName);
+                    }
+                    updateSelectedTagsDisplay();
+                    refreshTable();
+                });
+            }
+        } catch (RuntimeException e) {
+            showErrorDialog("Error", "Failed to load tags", e.getMessage());
+        }
+    }
+
+    private void updateSelectedTagsDisplay() {
+        selectedTagsPane.getChildren().clear();
+        
+        if (selectedTags.isEmpty()) {
+            Label noTagsLabel = new Label("No tags selected");
+            noTagsLabel.getStyleClass().add("no-tags-selected");
+            selectedTagsPane.getChildren().add(noTagsLabel);
+            return;
+        }
+        
+        for (String tagName : selectedTags) {
+            HBox tagBox = new HBox(5);
+            tagBox.setAlignment(Pos.CENTER_LEFT);
+            tagBox.getStyleClass().add("selected-tag");
+            
+            // Get tag color
+            Tag tag = tagColorMap.get(tagName);
+            String colorHex = (tag != null) ? tag.getColorHex() : "#2196F3"; // Default blue
+            
+            // Apply the tag's color to the tag pill
+            tagBox.setStyle("-fx-background-color: " + colorHex + "33;"); // 33 = 20% opacity
+            
+            Label tagLabel = new Label(tagName);
+            tagLabel.setStyle("-fx-text-fill: " + colorHex + ";");
+            
+            Button removeButton = new Button("×");
+            removeButton.getStyleClass().add("remove-tag-button");
+            removeButton.setOnAction(e -> {
+                selectedTags.remove(tagName);
+                updateSelectedTagsDisplay();
+                refreshTable();
+            });
+            
+            tagBox.getChildren().addAll(tagLabel, removeButton);
+            selectedTagsPane.getChildren().add(tagBox);
+        }
     }
 
     private VBox createSearchSection() {
@@ -212,12 +315,13 @@ public class MainView {
         searchContainer.getStyleClass().add("search-container");
         searchContainer.setPadding(new Insets(15));
         
-        // Search box with icon
+        // ---- SEARCH SECTION (TOP ROW) ----
         HBox searchBox = new HBox(10);
         searchBox.setAlignment(Pos.CENTER_LEFT);
+        searchBox.getStyleClass().add("control-section");
         
         // Search icon
-        ImageView searchIcon = createIcon("src/main/resources/Image/magnifier_868231.png", 16);
+        ImageView searchIcon = createIcon("src/main/resources/Image/magnifier_868231.png", 24);
         Label searchLabel;
         if (searchIcon != null) {
             searchLabel = new Label("Search:", searchIcon);
@@ -239,18 +343,19 @@ public class MainView {
         
         searchBox.getChildren().addAll(searchLabel, searchField, searchOptions);
         
-        // Filter section with enhanced styling
-        VBox filterContainer = new VBox(10);
-        filterContainer.getStyleClass().add("filter-container");
-        filterContainer.setPadding(new Insets(12));
+        // ---- FILTER AND SORT ROW (BOTTOM ROW) ----
+        HBox filterSortRow = new HBox(20);
+        filterSortRow.setAlignment(Pos.CENTER_LEFT);
         
-        // Tag selection - now in a single row with Clear All button on the right
-        HBox tagSelectionBox = new HBox(10);
-        tagSelectionBox.setAlignment(Pos.CENTER_LEFT);
-        tagSelectionBox.getStyleClass().add("filter-header-item");
+        // ---- FILTER SECTION ----
+        HBox filterBox = new HBox(10);
+        filterBox.setAlignment(Pos.CENTER_LEFT);
+        filterBox.getStyleClass().add("control-section");
+        filterBox.setPrefWidth(450);
+        HBox.setHgrow(filterBox, Priority.SOMETIMES);
         
         // Filter icon
-        ImageView filterIcon = createIcon("src/main/resources/Image/filter_679890.png", 16);
+        ImageView filterIcon = createIcon("src/main/resources/Image/filter_679890.png", 24);
         Label filterLabel;
         if (filterIcon != null) {
             filterLabel = new Label("Filters:", filterIcon);
@@ -292,18 +397,55 @@ public class MainView {
             }
         });
         
-        // Add all components to the tag selection box in a single row
-        tagSelectionBox.getChildren().addAll(filterLabel, tagLabel, tagComboBox, clearAllButton);
+        filterBox.getChildren().addAll(filterLabel, tagLabel, tagComboBox, clearAllButton);
         
-        // Selected tags display
+        // ---- SORT SECTION ----
+        HBox sortBox = new HBox(10);
+        sortBox.setAlignment(Pos.CENTER_LEFT);
+        sortBox.getStyleClass().add("control-section");
+        sortBox.setPrefWidth(450);
+        HBox.setHgrow(sortBox, Priority.SOMETIMES);
+        
+        // Sort icon
+        ImageView sortIcon = createIcon("src/main/resources/Image/sort_3126622.png", 24);
+        Label sortLabel;
+        if (sortIcon != null) {
+            sortLabel = new Label("Sort by:", sortIcon);
+            sortLabel.setGraphicTextGap(5);
+        } else {
+            sortLabel = new Label("Sort by:");
+        }
+        sortLabel.getStyleClass().add("section-label");
+        
+        // Sort options
+        ComboBox<String> sortOptions = new ComboBox<>();
+        sortOptions.getItems().addAll("File Name", "Created Date", "Last Accessed");
+        sortOptions.setValue("File Name");
+        sortOptions.getStyleClass().add("combo-box");
+        
+        // Sort direction toggle
+        ToggleGroup sortDirectionGroup = new ToggleGroup();
+        
+        RadioButton ascendingSort = new RadioButton("Asc");
+        ascendingSort.setToggleGroup(sortDirectionGroup);
+        ascendingSort.setSelected(true);
+        ascendingSort.getStyleClass().add("sort-direction-toggle");
+        
+        RadioButton descendingSort = new RadioButton("Desc");
+        descendingSort.setToggleGroup(sortDirectionGroup);
+        descendingSort.getStyleClass().add("sort-direction-toggle");
+        
+        sortBox.getChildren().addAll(sortLabel, sortOptions, ascendingSort, descendingSort);
+        
+        // Add filter and sort to the bottom row
+        filterSortRow.getChildren().addAll(filterBox, sortBox);
+        
+        // Selected tags display in a separate row
         FlowPane selectedTagsPane = new FlowPane();
         selectedTagsPane.setHgap(5);
         selectedTagsPane.setVgap(5);
         selectedTagsPane.setPadding(new Insets(5));
         selectedTagsPane.getStyleClass().add("selected-tags-pane");
-        
-        // Add filter components to filter container
-        filterContainer.getChildren().addAll(tagSelectionBox, selectedTagsPane);
         
         // Store reference to update later
         this.selectedTagsPane = selectedTagsPane;
@@ -320,80 +462,28 @@ public class MainView {
             refreshTable();
         });
         
+        // Sort option listener
+        sortOptions.valueProperty().addListener((observable, oldValue, newValue) -> {
+            sortFiles(newValue, ascendingSort.isSelected());
+        });
+        
+        // Sort direction listeners
+        ascendingSort.selectedProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue) {
+                sortFiles(sortOptions.getValue(), true);
+            }
+        });
+        
+        descendingSort.selectedProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue) {
+                sortFiles(sortOptions.getValue(), false);
+            }
+        });
+        
         // Add all components to search container
-        searchContainer.getChildren().addAll(searchBox, filterContainer);
+        searchContainer.getChildren().addAll(searchBox, filterSortRow, selectedTagsPane);
         
         return searchContainer;
-    }
-
-    private void updateSelectedTagsDisplay() {
-        selectedTagsPane.getChildren().clear();
-        
-        if (selectedTags.isEmpty()) {
-            Label noFiltersLabel = new Label("No active filters");
-            noFiltersLabel.setStyle("-fx-font-style: italic; -fx-text-fill: #909090;");
-            selectedTagsPane.getChildren().add(noFiltersLabel);
-            return;
-        }
-        
-        for (String tag : selectedTags) {
-            HBox tagChip = new HBox(5);
-            tagChip.getStyleClass().add("tag-chip");
-            tagChip.setAlignment(Pos.CENTER_LEFT);
-            
-            Label tagLabel = new Label(tag);
-            
-            Button removeButton = new Button("×");
-            removeButton.getStyleClass().add("close-button");
-            removeButton.setOnAction(e -> {
-                selectedTags.remove(tag);
-                refreshTable();
-                updateSelectedTagsDisplay();
-            });
-            
-            tagChip.getChildren().addAll(tagLabel, removeButton);
-            selectedTagsPane.getChildren().add(tagChip);
-        }
-    }
-
-    private void updateTagFilterBox() {
-        try {
-            Set<String> allTags = controller.getAllTags();
-        } catch (RuntimeException e) {
-            showErrorDialog("Error", "Failed to load tags", e.getMessage());
-        }
-    }
-
-    private VBox createCenterContent() {
-        VBox centerContent = new VBox(10);
-        centerContent.setPadding(new Insets(10));
-        centerContent.setFillWidth(true);
-        
-        // Create file list container
-        fileListContainer = new VBox(5);
-        fileListContainer.setPadding(new Insets(10));
-        fileListContainer.setFillWidth(true);
-        
-        // Create scroll pane to contain the file list
-        ScrollPane fileListScrollPane = new ScrollPane(fileListContainer);
-        fileListScrollPane.setFitToWidth(true);
-        fileListScrollPane.setFitToHeight(true); // Make it fill available height
-        fileListScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
-        fileListScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
-        fileListScrollPane.setPrefHeight(Region.USE_COMPUTED_SIZE); // Dynamic height
-        fileListScrollPane.setMinHeight(400); // Minimum height
-        
-        // Make the scroll pane expand to fill available space
-        VBox.setVgrow(fileListScrollPane, Priority.ALWAYS);
-        
-        centerContent.getChildren().add(fileListScrollPane);
-        
-        // Make the center content expand to fill available space
-        VBox.setVgrow(centerContent, Priority.ALWAYS);
-        
-        refreshTable();
-        
-        return centerContent;
     }
 
     private void performSearch() {
@@ -413,22 +503,36 @@ public class MainView {
             dialog.setTitle("Add File");
             dialog.setHeaderText("Add tags for " + file.getName());
             
+            // Apply dark theme to dialog
+            DialogPane dialogPane = dialog.getDialogPane();
+            dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
+            dialogPane.getStyleClass().add("dialog-pane");
+            
             // Create the dialog content
-            VBox content = new VBox(10);
-            content.setPadding(new Insets(10));
+            VBox content = new VBox(15);
+            content.setPadding(new Insets(20));
+            content.getStyleClass().add("custom-dialog");
             
             // Tags section
             Label tagsLabel = new Label("Tags (comma-separated):");
+            tagsLabel.getStyleClass().add("section-label");
+            
             TextField tagsField = new TextField();
+            tagsField.setPrefHeight(35);
             
             // Add tag suggestions
+            Label suggestionsLabel = new Label("Suggested Tags:");
+            suggestionsLabel.getStyleClass().add("section-label");
+            
             FlowPane tagSuggestions = new FlowPane();
-            tagSuggestions.setHgap(5);
-            tagSuggestions.setVgap(5);
+            tagSuggestions.setHgap(8);
+            tagSuggestions.setVgap(8);
+            tagSuggestions.setPadding(new Insets(5));
             
             // Add predefined tags
             for (String tag : PREDEFINED_TAGS) {
                 Button tagButton = new Button(tag);
+                tagButton.getStyleClass().add("tag-button");
                 tagButton.setOnAction(e -> {
                     String currentTags = tagsField.getText();
                     tagsField.setText(currentTags.isEmpty() ? tag : currentTags + ", " + tag);
@@ -440,6 +544,7 @@ public class MainView {
             for (String tag : existingTags) {
                 if (!PREDEFINED_TAGS.contains(tag)) {
                     Button tagButton = new Button(tag);
+                    tagButton.getStyleClass().add("tag-button");
                     tagButton.setOnAction(e -> {
                         String currentTags = tagsField.getText();
                         tagsField.setText(currentTags.isEmpty() ? tag : currentTags + ", " + tag);
@@ -448,12 +553,20 @@ public class MainView {
                 }
             }
             
-            content.getChildren().addAll(tagsLabel, tagsField, new Label("Suggested Tags:"), tagSuggestions);
-            dialog.getDialogPane().setContent(content);
+            content.getChildren().addAll(tagsLabel, tagsField, suggestionsLabel, tagSuggestions);
+            dialogPane.setContent(content);
             
             // Add buttons
             ButtonType addButton = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
-            dialog.getDialogPane().getButtonTypes().addAll(addButton, ButtonType.CANCEL);
+            ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+            dialogPane.getButtonTypes().addAll(addButton, cancelButton);
+            
+            // Style the buttons
+            Button addButtonNode = (Button) dialogPane.lookupButton(addButton);
+            addButtonNode.getStyleClass().add("ok-button");
+            
+            Button cancelButtonNode = (Button) dialogPane.lookupButton(cancelButton);
+            cancelButtonNode.getStyleClass().add("cancel-button");
             
             // Set the result converter
             dialog.setResultConverter(buttonType -> {
@@ -497,218 +610,249 @@ public class MainView {
         dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
         dialogPane.getStyleClass().add("dialog-pane");
 
-        // Create the content
-        VBox content = new VBox(10);
-        content.setPadding(new Insets(10));
+        // Create content
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        content.getStyleClass().add("custom-dialog");
 
-        // Current tags
+        // Current tags section
         Label currentTagsLabel = new Label("Current Tags:");
-        FlowPane currentTags = new FlowPane(5, 5);
-        
-        for (String tag : file.getTags()) {
-            HBox tagBox = new HBox(5);
-            tagBox.getStyleClass().add("tag-box");
+        currentTagsLabel.getStyleClass().add("section-label");
+
+        FlowPane currentTagsPane = new FlowPane();
+        currentTagsPane.setHgap(8);
+        currentTagsPane.setVgap(8);
+        currentTagsPane.setPadding(new Insets(5));
+
+        Set<String> fileTags = new HashSet<>(file.getTags());
+        for (String tagName : fileTags) {
+            // Get tag color
+            Tag tag = tagColorMap.get(tagName);
+            String colorHex = (tag != null) ? tag.getColorHex() : "#2196F3"; // Default blue
             
-            Label tagLabel = new Label(tag);
+            Label tagLabel = new Label(tagName);
+            tagLabel.getStyleClass().add("tag-pill");
             
-            Button removeButton = new Button("×");
-            removeButton.getStyleClass().add("remove-tag-button");
-            removeButton.setOnAction(e -> {
-                Set<String> updatedTags = new HashSet<>(file.getTags());
-                updatedTags.remove(tag);
-                file.setTags(updatedTags);
-                controller.updateFileTags(file);
-                currentTags.getChildren().remove(tagBox);
-            });
+            // Apply the tag's specific color
+            tagLabel.setStyle("-fx-background-color: " + colorHex + ";");
             
-            tagBox.getChildren().addAll(tagLabel, removeButton);
-            currentTags.getChildren().add(tagBox);
+            // For dark colors, use white text; for light colors, use dark text
+            if (tag != null && isColorDark(tag.getColor())) {
+                tagLabel.setTextFill(javafx.scene.paint.Color.WHITE);
+            } else {
+                tagLabel.setTextFill(javafx.scene.paint.Color.rgb(33, 33, 33));
+            }
+            
+            currentTagsPane.getChildren().add(tagLabel);
         }
 
-        // Add new tag
-        Label addTagLabel = new Label("Add Tag:");
-        ComboBox<String> tagInput = new ComboBox<>();
-        tagInput.setEditable(true);
-        tagInput.setPromptText("Enter or select a tag");
-        tagInput.getItems().addAll(controller.getAllTags());
+        // Edit tags section
+        Label editTagsLabel = new Label("Edit Tags (comma-separated):");
+        editTagsLabel.getStyleClass().add("section-label");
 
-        Button addButton = new Button("Add Tag");
-        addButton.getStyleClass().addAll("button", "action-button");
-        addButton.setOnAction(e -> {
-            String newTag = tagInput.getValue();
-            if (newTag != null && !newTag.trim().isEmpty()) {
-                Set<String> updatedTags = new HashSet<>(file.getTags());
-                updatedTags.add(newTag.trim());
-                file.setTags(updatedTags);
-                controller.updateFileTags(file);
-                
-                HBox tagBox = new HBox(5);
-                tagBox.getStyleClass().add("tag-box");
-                
-                Label tagLabel = new Label(newTag.trim());
-                Button removeButton = new Button("×");
-                removeButton.getStyleClass().add("remove-tag-button");
-                removeButton.setOnAction(ev -> {
-                    Set<String> tags = new HashSet<>(file.getTags());
-                    tags.remove(newTag.trim());
-                    file.setTags(tags);
-                    controller.updateFileTags(file);
-                    currentTags.getChildren().remove(tagBox);
-                });
-                
-                tagBox.getChildren().addAll(tagLabel, removeButton);
-                currentTags.getChildren().add(tagBox);
-                
-                tagInput.setValue("");
-            }
-        });
+        TextField tagsField = new TextField();
+        tagsField.setText(String.join(", ", fileTags));
+        tagsField.setPrefHeight(35);
+
+        // Available tags section
+        Label availableTagsLabel = new Label("Available Tags:");
+        availableTagsLabel.getStyleClass().add("section-label");
+
+        FlowPane availableTagsPane = new FlowPane();
+        availableTagsPane.setHgap(8);
+        availableTagsPane.setVgap(8);
+        availableTagsPane.setPadding(new Insets(5));
+
+        // Add all available tags
+        Set<String> allTagNames = tagColorMap.keySet();
+        for (String tagName : allTagNames) {
+            // Get tag color
+            Tag tag = tagColorMap.get(tagName);
+            String colorHex = (tag != null) ? tag.getColorHex() : "#2196F3"; // Default blue
+            
+            Button tagButton = new Button(tagName);
+            tagButton.getStyleClass().add("tag-button");
+            
+            // Apply the tag's specific color
+            tagButton.setStyle("-fx-text-fill: " + colorHex + "; -fx-border-color: " + colorHex + ";");
+            
+            tagButton.setOnAction(e -> {
+                String currentTags = tagsField.getText();
+                // Check if tag is already in the list
+                if (!currentTags.contains(tagName)) {
+                    tagsField.setText(currentTags.isEmpty() ? tagName : currentTags + ", " + tagName);
+                }
+            });
+            availableTagsPane.getChildren().add(tagButton);
+        }
 
         content.getChildren().addAll(
-            currentTagsLabel, currentTags,
-            addTagLabel, tagInput, addButton
+            currentTagsLabel, currentTagsPane,
+            editTagsLabel, tagsField,
+            availableTagsLabel, availableTagsPane
         );
 
         dialogPane.setContent(content);
 
         // Add buttons
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK);
+        ButtonType saveButton = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialogPane.getButtonTypes().addAll(saveButton, cancelButton);
+        
+        // Style the buttons
+        Button saveButtonNode = (Button) dialogPane.lookupButton(saveButton);
+        saveButtonNode.getStyleClass().add("ok-button");
+        
+        Button cancelButtonNode = (Button) dialogPane.lookupButton(cancelButton);
+        cancelButtonNode.getStyleClass().add("cancel-button");
+
+        // Set the result converter
+        dialog.setResultConverter(buttonType -> {
+            if (buttonType == saveButton) {
+                // Parse the tags from the text field
+                Set<String> newTags = new HashSet<>();
+                String inputTags = tagsField.getText();
+                if (!inputTags.trim().isEmpty()) {
+                    for (String tag : inputTags.split(",")) {
+                        String trimmedTag = tag.trim();
+                        if (!trimmedTag.isEmpty()) {
+                            newTags.add(trimmedTag);
+                        }
+                    }
+                }
+
+                // Update the file's tags
+                file.setTags(newTags);
+                controller.updateFileTags(file);
+                refreshTable();
+            }
+            return buttonType;
+        });
 
         // Show dialog
         dialog.showAndWait();
-        
-        // Refresh the table to show updated tags
-        refreshTable();
     }
 
     private void refreshTable() {
-        List<TaggedFile> files;
-        
-        if (!selectedTags.isEmpty()) {
-            files = controller.getFilesByTags(selectedTags);
-        } else {
-            files = controller.getAllFiles();
-        }
-        
-        // Apply search filter if search term is not empty
-        if (searchTerm != null && !searchTerm.isEmpty()) {
-            String term = searchTerm.toLowerCase();
-            files = files.stream().filter(file -> {
-                if (searchOption.equals("File Name")) {
-                    return file.getFileName().toLowerCase().contains(term);
-                } else if (searchOption.equals("Tags")) {
-                    return file.getTags().stream()
-                            .anyMatch(tag -> tag.toLowerCase().contains(term));
-                } else if (searchOption.equals("Path")) {
-                    return file.getFilePath().toLowerCase().contains(term);
-                }
-                return false;
-            }).collect(Collectors.toList());
-        }
-        
-        // Clear and rebuild file list
-        fileListContainer.getChildren().clear();
-        
-        if (files.isEmpty()) {
-            Label noFilesLabel = new Label("No files found matching your criteria");
-            noFilesLabel.getStyleClass().add("no-files-label");
-            noFilesLabel.setPadding(new Insets(20));
-            fileListContainer.getChildren().add(noFilesLabel);
-        } else {
-            for (TaggedFile file : files) {
-                TitledPane filePanel = createFilePanel(file);
-                fileListContainer.getChildren().add(filePanel);
-            }
-        }
-    }
-    
-    private void updateFileListView() {
-        fileListContainer.getChildren().clear();
-        
-        if (filesList.isEmpty()) {
-            Label noFilesLabel = new Label("No files found");
-            noFilesLabel.setStyle("-fx-font-style: italic; -fx-text-fill: gray;");
-            fileListContainer.getChildren().add(noFilesLabel);
+        // Skip if still initializing
+        if (isInitializing && fileListContainer == null) {
             return;
         }
         
-        for (TaggedFile file : filesList) {
-            fileListContainer.getChildren().add(createFilePanel(file));
+        // Get all files from the controller
+        List<TaggedFile> allFiles = controller.getAllFiles();
+        
+        // Create a temporary list for filtering
+        List<TaggedFile> filteredFiles = new ArrayList<>();
+        
+        // Filter files based on search term and selected tags
+        for (TaggedFile file : allFiles) {
+            if (matchesSearchCriteria(file) && isFileMatchingFilters(file)) {
+                filteredFiles.add(file);
+            }
         }
+        
+        // Apply current sort
+        sortFileList(filteredFiles, currentSortOption, currentSortAscending);
+        
+        // Update the UI
+        updateFileListDisplay(filteredFiles);
+        
+        // Make sure to update the selected tags display
+        updateSelectedTagsDisplay();
     }
     
+    private void updateFileListDisplay(List<TaggedFile> filesToDisplay) {
+        // Run on JavaFX thread to avoid concurrency issues
+        Platform.runLater(() -> {
+            fileListContainer.getChildren().clear();
+            
+            if (filesToDisplay.isEmpty()) {
+                Label noFilesLabel = new Label("No files found.");
+                noFilesLabel.getStyleClass().add("no-files-label");
+                fileListContainer.getChildren().add(noFilesLabel);
+            } else {
+                for (TaggedFile file : filesToDisplay) {
+                    TitledPane filePanel = createFilePanel(file);
+                    fileListContainer.getChildren().add(filePanel);
+                }
+            }
+        });
+    }
+    
+    private void sortFiles(String sortOption, boolean ascending) {
+        // Update current sort settings
+        this.currentSortOption = sortOption;
+        this.currentSortAscending = ascending;
+        
+        // Get all files from the controller
+        List<TaggedFile> allFiles = controller.getAllFiles();
+        
+        // Create a temporary list for filtering
+        List<TaggedFile> filteredFiles = new ArrayList<>();
+        
+        // Filter files based on search term and selected tags
+        for (TaggedFile file : allFiles) {
+            if (matchesSearchCriteria(file) && isFileMatchingFilters(file)) {
+                filteredFiles.add(file);
+            }
+        }
+        
+        // Apply sort
+        sortFileList(filteredFiles, sortOption, ascending);
+        
+        // Update the UI
+        updateFileListDisplay(filteredFiles);
+    }
+    
+    private void sortFileList(List<TaggedFile> files, String sortOption, boolean ascending) {
+        if (files == null || files.isEmpty()) {
+            return;
+        }
+        
+        Comparator<TaggedFile> comparator = null;
+        
+        switch (sortOption) {
+            case "File Name":
+                comparator = Comparator.comparing(TaggedFile::getFileName, String.CASE_INSENSITIVE_ORDER);
+                break;
+            case "Created Date":
+                comparator = Comparator.comparing(TaggedFile::getCreatedAt);
+                break;
+            case "Last Accessed":
+                comparator = Comparator.comparing(TaggedFile::getLastAccessedAt);
+                break;
+            default:
+                comparator = Comparator.comparing(TaggedFile::getFileName, String.CASE_INSENSITIVE_ORDER);
+        }
+        
+        if (!ascending) {
+            comparator = comparator.reversed();
+        }
+        
+        // Sort the list
+        files.sort(comparator);
+    }
+
     private TitledPane createFilePanel(TaggedFile file) {
         // Create the main content for the collapsed state
         HBox header = new HBox();
         header.setAlignment(Pos.CENTER_LEFT);
-        header.setPadding(new Insets(5, 15, 5, 10)); // Consistent padding
+        header.setPadding(new Insets(10, 15, 10, 15)); // Increased padding for better spacing
         header.setPrefWidth(Control.USE_COMPUTED_SIZE); // Make panel fit window width
         header.setMaxWidth(Double.MAX_VALUE); // Allow expansion to full width
-        header.setSpacing(0); // No spacing between elements - we'll control it manually
+        header.setSpacing(15); // Add spacing between elements for better readability
         
-        // Status indicator based on tags
-        Region statusIndicator = new Region();
-        statusIndicator.getStyleClass().addAll("status-indicator");
-        statusIndicator.setMinWidth(8);
-        statusIndicator.setPrefWidth(8);
-        statusIndicator.setMaxWidth(8);
+        // Action buttons with icons - on the left side
+        HBox actionButtons = new HBox(10);  // Spacing between buttons
+        actionButtons.setAlignment(Pos.CENTER_LEFT);
         
-        // Check if file exists
-        File fileObj = new File(file.getFilePath());
-        if (!fileObj.exists()) {
-            // Missing file - red indicator
-            statusIndicator.getStyleClass().add("status-missing");
-            // Also add missing-file class to the entire panel
-            header.getStyleClass().add("missing-file");
-        } else if (file.getTags().contains("Done")) {
-            statusIndicator.getStyleClass().add("status-done");
-        } else if (file.getTags().contains("In Progress")) {
-            statusIndicator.getStyleClass().add("status-in-progress");
-        } else {
-            statusIndicator.getStyleClass().add("status-new");
-        }
-        
-        // File name and tags container
-        HBox contentContainer = new HBox(10);
-        contentContainer.setAlignment(Pos.CENTER_LEFT);
-        contentContainer.setPadding(new Insets(0, 0, 0, 10)); // Add padding after status indicator
-        
-        // File name label with larger font
-        Label fileNameLabel = new Label(file.getFileName());
-        fileNameLabel.getStyleClass().add("file-name");
-        fileNameLabel.setMaxWidth(300);
-        
-        // Tags flow pane
-        FlowPane tagsPane = new FlowPane();
-        tagsPane.setHgap(5);
-        tagsPane.setVgap(5);
-        tagsPane.setPadding(new Insets(0, 5, 0, 5));
-        tagsPane.setPrefWrapLength(350); // Set preferred wrap length
-        
-        for (String tag : file.getTags()) {
-            Label tagLabel = new Label(tag);
-            tagLabel.getStyleClass().add("tag-box");
-            tagsPane.getChildren().add(tagLabel);
-        }
-        
-        contentContainer.getChildren().addAll(fileNameLabel, tagsPane);
-        
-        // Add spacer to push action buttons to the right
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        
-        // Action buttons with icons - all on the right with consistent placement
-        HBox actionButtons = new HBox(20);  // Increased spacing between buttons
-        actionButtons.setAlignment(Pos.CENTER_RIGHT);
-        actionButtons.setPrefWidth(150);  // Fixed width for action buttons area
-        actionButtons.setMinWidth(150);   // Ensure minimum width
-        actionButtons.setMaxWidth(150);   // Ensure maximum width
-        
-        // Edit tags button with icon - fixed width and alignment
+        // Edit tags button with icon
         Button editTagsButton = new Button();
         editTagsButton.getStyleClass().addAll("icon-button", "edit-button");
-        editTagsButton.setPrefWidth(30);
-        editTagsButton.setMinWidth(30);
-        editTagsButton.setMaxWidth(30);
+        editTagsButton.setPrefSize(30, 30);
+        editTagsButton.setMinSize(30, 30);
+        editTagsButton.setMaxSize(30, 30);
         ImageView editIcon = createIcon("src/main/resources/Image/pencil_505210.png", 16);
         if (editIcon != null) {
             editTagsButton.setGraphic(editIcon);
@@ -718,12 +862,12 @@ public class MainView {
         editTagsButton.setTooltip(new Tooltip("Edit Tags"));
         editTagsButton.setOnAction(e -> editFileTags(file));
         
-        // Open file button with icon - fixed width and alignment
+        // Open file button with icon
         Button openFileButton = new Button();
         openFileButton.getStyleClass().addAll("icon-button", "open-button");
-        openFileButton.setPrefWidth(30);
-        openFileButton.setMinWidth(30);
-        openFileButton.setMaxWidth(30);
+        openFileButton.setPrefSize(30, 30);
+        openFileButton.setMinSize(30, 30);
+        openFileButton.setMaxSize(30, 30);
         ImageView openIcon = createIcon("src/main/resources/Image/folder_3767084.png", 16);
         if (openIcon != null) {
             openFileButton.setGraphic(openIcon);
@@ -733,12 +877,12 @@ public class MainView {
         openFileButton.setTooltip(new Tooltip("Open File"));
         openFileButton.setOnAction(e -> openFile(file));
         
-        // Delete button with icon - fixed width and alignment
+        // Delete button with icon
         Button deleteFileButton = new Button();
         deleteFileButton.getStyleClass().addAll("icon-button", "delete-button");
-        deleteFileButton.setPrefWidth(30);
-        deleteFileButton.setMinWidth(30);
-        deleteFileButton.setMaxWidth(30);
+        deleteFileButton.setPrefSize(30, 30);
+        deleteFileButton.setMinSize(30, 30);
+        deleteFileButton.setMaxSize(30, 30);
         ImageView deleteIcon = createIcon("src/main/resources/Image/trash_1161747.png", 16);
         if (deleteIcon != null) {
             deleteFileButton.setGraphic(deleteIcon);
@@ -752,11 +896,6 @@ public class MainView {
             alert.setHeaderText("Delete " + file.getFileName());
             alert.setContentText("Are you sure you want to delete this file from the system?");
             
-            // Apply dark theme to alert dialog
-            DialogPane dialogPane = alert.getDialogPane();
-            dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
-            dialogPane.getStyleClass().add("dialog-pane");
-            
             Optional<ButtonType> result = alert.showAndWait();
             if (result.isPresent() && result.get() == ButtonType.OK) {
                 controller.deleteFile(file.getFilePath());
@@ -766,86 +905,137 @@ public class MainView {
         
         actionButtons.getChildren().addAll(editTagsButton, openFileButton, deleteFileButton);
         
-        // Add all components to the header with precise control over layout
-        header.getChildren().addAll(statusIndicator, contentContainer, spacer, actionButtons);
+        // File name label with larger font
+        Label fileNameLabel = new Label(file.getFileName());
+        fileNameLabel.getStyleClass().add("file-name");
+        fileNameLabel.setPrefWidth(300);
+        fileNameLabel.setMinWidth(200);
         
-        // Create the content for the expanded state
-        VBox expandedContent = new VBox(10);
-        expandedContent.setPadding(new Insets(15, 10, 10, 10));
+        // Status indicator based on tags - moved to the right of file name
+        Region statusIndicator = new Region();
+        statusIndicator.getStyleClass().addAll("status-indicator");
+        statusIndicator.setMinSize(8, 16);
+        statusIndicator.setPrefSize(8, 16);
+        statusIndicator.setMaxSize(8, 16);
         
-        // File details
-        GridPane detailsGrid = new GridPane();
-        detailsGrid.setHgap(15);
-        detailsGrid.setVgap(8);
-        detailsGrid.setPadding(new Insets(5));
+        // Check if file exists
+        File fileObj = new File(file.getFilePath());
+        if (!fileObj.exists()) {
+            // Missing file - red indicator
+            statusIndicator.getStyleClass().add("status-missing");
+            // We'll add the missing-file class to the file panel later
+        } else if (file.getTags().contains("Done")) {
+            statusIndicator.getStyleClass().add("status-done");
+        } else if (file.getTags().contains("In Progress")) {
+            statusIndicator.getStyleClass().add("status-in-progress");
+        } else {
+            statusIndicator.getStyleClass().add("status-new");
+        }
         
-        // Created date
-        Label createdLabel = new Label("Created:");
-        createdLabel.getStyleClass().add("file-metadata");
-        createdLabel.setStyle("-fx-font-weight: bold;");
-        Label createdValueLabel = new Label(
-            file.getCreatedAt() != null 
-                ? DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(file.getCreatedAt())
-                : "N/A"
-        );
-        createdValueLabel.getStyleClass().add("file-metadata");
+        // Tags flow pane - horizontal layout
+        FlowPane tagsPane = new FlowPane();
+        tagsPane.setHgap(8); // Increased gap for better visuals
+        tagsPane.setVgap(8);
+        tagsPane.setPadding(new Insets(2)); // Small padding around tags
+        HBox.setHgrow(tagsPane, Priority.ALWAYS); // Allow tags pane to take available horizontal space
         
-        // Last accessed date
-        Label accessedLabel = new Label("Last Accessed:");
-        accessedLabel.getStyleClass().add("file-metadata");
-        accessedLabel.setStyle("-fx-font-weight: bold;");
-        Label accessedValueLabel = new Label(
-            file.getLastAccessedAt() != null 
-                ? DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").format(file.getLastAccessedAt())
-                : "N/A"
-        );
-        accessedValueLabel.getStyleClass().add("file-metadata");
+        for (String tagName : file.getTags()) {
+            // Get tag color
+            Tag tag = tagColorMap.get(tagName);
+            String colorHex = (tag != null) ? tag.getColorHex() : "#2196F3"; // Default blue
+            
+            Label tagLabel = new Label(tagName);
+            tagLabel.getStyleClass().add("tag-pill");
+            
+            // Apply the tag's specific color
+            tagLabel.setStyle("-fx-background-color: " + colorHex + ";");
+            
+            // For dark colors, use white text; for light colors, use dark text
+            if (tag != null && isColorDark(tag.getColor())) {
+                tagLabel.setTextFill(javafx.scene.paint.Color.WHITE);
+            } else {
+                tagLabel.setTextFill(javafx.scene.paint.Color.rgb(33, 33, 33));
+            }
+            
+            tagsPane.getChildren().add(tagLabel);
+        }
         
-        // File path
-        Label pathLabel = new Label("Path:");
-        pathLabel.getStyleClass().add("file-metadata");
-        pathLabel.setStyle("-fx-font-weight: bold;");
-        Label pathValueLabel = new Label(file.getFilePath());
-        pathValueLabel.getStyleClass().add("file-metadata");
+        // Add all components to header in the correct order
+        header.getChildren().addAll(actionButtons, fileNameLabel, statusIndicator, tagsPane);
         
-        // Add to grid
-        detailsGrid.add(createdLabel, 0, 0);
-        detailsGrid.add(createdValueLabel, 1, 0);
-        detailsGrid.add(accessedLabel, 0, 1);
-        detailsGrid.add(accessedValueLabel, 1, 1);
-        detailsGrid.add(pathLabel, 0, 2);
-        detailsGrid.add(pathValueLabel, 1, 2);
-        
-        // Add all to expanded content
-        expandedContent.getChildren().add(detailsGrid);
-        
-        // Create titled pane
+        // Create titled pane with the header
         TitledPane filePanel = new TitledPane();
         filePanel.setGraphic(header);
-        filePanel.setContent(expandedContent);
+        filePanel.setText(null); // No text in the title bar, using custom header
         filePanel.setExpanded(false);
-        filePanel.setText(null); // Remove default text
-        filePanel.setUserData(file); // Store the file object for reference
+        filePanel.setAnimated(true);
         filePanel.getStyleClass().add("file-panel");
-        filePanel.setMaxWidth(Double.MAX_VALUE); // Make panel expand to full width
+        
+        // Add missing-file class to the file panel if the file doesn't exist
+        if (!fileObj.exists()) {
+            filePanel.getStyleClass().add("missing-file");
+        }
+        
+        // Create content for expanded state
+        VBox expandedContent = new VBox(10);
+        expandedContent.setPadding(new Insets(10, 15, 15, 15));
+        
+        // File path
+        Label pathLabel = new Label("Path: " + file.getFilePath());
+        pathLabel.getStyleClass().add("file-metadata");
+        
+        // File size
+        String fileSize = "Unknown";
+        if (fileObj.exists()) {
+            long size = fileObj.length();
+            if (size < 1024) {
+                fileSize = size + " B";
+            } else if (size < 1024 * 1024) {
+                fileSize = String.format("%.2f KB", size / 1024.0);
+            } else {
+                fileSize = String.format("%.2f MB", size / (1024.0 * 1024.0));
+            }
+        }
+        Label sizeLabel = new Label("Size: " + fileSize);
+        sizeLabel.getStyleClass().add("file-metadata");
+        
+        // Last modified
+        String lastModified = "Unknown";
+        if (fileObj.exists()) {
+            lastModified = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date(fileObj.lastModified()));
+        }
+        Label modifiedLabel = new Label("Last Modified: " + lastModified);
+        modifiedLabel.getStyleClass().add("file-metadata");
+        
+        expandedContent.getChildren().addAll(pathLabel, sizeLabel, modifiedLabel);
+        filePanel.setContent(expandedContent);
         
         return filePanel;
     }
 
     private void openFile(TaggedFile file) {
         try {
-            File f = new File(file.getFilePath());
-            if (f.exists()) {
+            File fileToOpen = new File(file.getFilePath());
+            if (fileToOpen.exists()) {
+                // Update last accessed time
+                file.updateLastAccessed();
+                controller.updateFileTags(file);
+                
+                // Open the file with the default system application
                 if (System.getProperty("os.name").toLowerCase().contains("win")) {
-                    new ProcessBuilder("cmd", "/c", f.getAbsolutePath()).start();
+                    new ProcessBuilder("cmd", "/c", fileToOpen.getAbsolutePath()).start();
                 } else {
-                    new ProcessBuilder("xdg-open", f.getAbsolutePath()).start();
+                    new ProcessBuilder("xdg-open", fileToOpen.getAbsolutePath()).start();
                 }
             } else {
-                showErrorDialog("File Not Found", "Could not open file", "The file " + file.getFileName() + " does not exist.");
+                showErrorDialog("File Not Found", 
+                        "Could not open file", 
+                        "The file " + file.getFileName() + " does not exist.");
             }
         } catch (IOException e) {
-            showErrorDialog("Error Opening File", "Could not open file", e.getMessage());
+            showErrorDialog("Error Opening File", 
+                    "Could not open file", 
+                    e.getMessage());
         }
     }
 
@@ -854,7 +1044,44 @@ public class MainView {
         alert.setTitle(title);
         alert.setHeaderText(header);
         alert.setContentText(content);
+        
+        // Apply dark theme to alert
+        DialogPane dialogPane = alert.getDialogPane();
+        dialogPane.getStylesheets().add(getClass().getResource("/styles.css").toExternalForm());
+        dialogPane.getStyleClass().add("dialog-pane");
+        
         alert.showAndWait();
+    }
+
+    private boolean isFileMatchingFilters(TaggedFile file) {
+        if (selectedTags.isEmpty()) {
+            return true;
+        }
+        
+        for (String tag : selectedTags) {
+            if (file.getTags().contains(tag)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    private boolean matchesSearchCriteria(TaggedFile file) {
+        if (searchTerm == null || searchTerm.isEmpty()) {
+            return true;
+        }
+        
+        String term = searchTerm.toLowerCase();
+        if (searchOption.equals("File Name")) {
+            return file.getFileName().toLowerCase().contains(term);
+        } else if (searchOption.equals("Tags")) {
+            return file.getTags().stream()
+                    .anyMatch(tag -> tag.toLowerCase().contains(term));
+        } else if (searchOption.equals("Path")) {
+            return file.getFilePath().toLowerCase().contains(term);
+        }
+        return false;
     }
 
     /**
@@ -927,5 +1154,100 @@ public class MainView {
             System.err.println("Failed to load icon: " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Loads all tags with their colors from the controller.
+     */
+    private void loadTagColors() {
+        try {
+            tagColorMap = controller.getAllTagsWithColors();
+        } catch (Exception e) {
+            showErrorDialog("Error", "Failed to load tag colors", e.getMessage());
+        }
+    }
+
+    /**
+     * Determines if a color is dark (to decide whether to use white or black text).
+     * 
+     * @param color The color to check
+     * @return true if the color is dark, false otherwise
+     */
+    private boolean isColorDark(javafx.scene.paint.Color color) {
+        // Calculate perceived brightness using the formula:
+        // (0.299*R + 0.587*G + 0.114*B)
+        double brightness = color.getRed() * 0.299 + 
+                           color.getGreen() * 0.587 + 
+                           color.getBlue() * 0.114;
+        
+        // If brightness is less than 0.5, consider it dark
+        return brightness < 0.5;
+    }
+
+    private VBox createCenterContent() {
+        VBox centerContent = new VBox(10);
+        centerContent.setPadding(new Insets(10));
+        centerContent.setFillWidth(true);
+        
+        // Create file list container
+        fileListContainer = new VBox(5);
+        fileListContainer.setPadding(new Insets(10));
+        fileListContainer.setFillWidth(true);
+        
+        // Create scroll pane to contain the file list
+        ScrollPane fileListScrollPane = new ScrollPane(fileListContainer);
+        fileListScrollPane.setFitToWidth(true);
+        fileListScrollPane.setFitToHeight(true); // Make it fill available height
+        fileListScrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        fileListScrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        fileListScrollPane.setPrefHeight(Region.USE_COMPUTED_SIZE); // Dynamic height
+        fileListScrollPane.setMinHeight(400); // Minimum height
+        
+        // Make the scroll pane expand to fill available space
+        VBox.setVgrow(fileListScrollPane, Priority.ALWAYS);
+        
+        centerContent.getChildren().add(fileListScrollPane);
+        
+        // Make the center content expand to fill available space
+        VBox.setVgrow(centerContent, Priority.ALWAYS);
+        
+        refreshTable();
+        
+        return centerContent;
+    }
+
+    private VBox createSidebar() {
+        // Create left sidebar with toolbar buttons
+        VBox sidebar = new VBox(5);
+        sidebar.getStyleClass().add("sidebar");
+        
+        Label appTitle = new Label("TagEase");
+        appTitle.getStyleClass().add("app-title");
+        appTitle.setPadding(new Insets(10, 0, 20, 10));
+        
+        // Add File button with icon
+        Button addFileButton = new Button("Add File");
+        addFileButton.getStyleClass().add("sidebar-button");
+        addFileButton.setMaxWidth(Double.MAX_VALUE);
+        ImageView addFileIcon = createIcon("src/main/resources/Image/file_338043.png", 24);
+        if (addFileIcon != null) {
+            addFileButton.setGraphic(addFileIcon);
+            addFileButton.setGraphicTextGap(10);
+        }
+        addFileButton.setOnAction(e -> addFile());
+        
+        // Manage Tags button with icon
+        Button manageTagsButton = new Button("Manage Tags");
+        manageTagsButton.getStyleClass().add("sidebar-button");
+        manageTagsButton.setMaxWidth(Double.MAX_VALUE);
+        ImageView manageTagsIcon = createIcon("src/main/resources/Image/file_1346913.png", 24);
+        if (manageTagsIcon != null) {
+            manageTagsButton.setGraphic(manageTagsIcon);
+            manageTagsButton.setGraphicTextGap(10);
+        }
+        manageTagsButton.setOnAction(e -> showTagManagementWindow());
+        
+        sidebar.getChildren().addAll(appTitle, addFileButton, manageTagsButton);
+        return sidebar;
     }
 }

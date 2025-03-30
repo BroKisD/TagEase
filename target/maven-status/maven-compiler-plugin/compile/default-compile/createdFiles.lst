@@ -5,6 +5,7 @@ com/tagease/utils/HealthCheck$FileStatus.class
 com/tagease/App.class
 com/tagease/utils/HealthCheck$HealthCheckResult.class
 com/tagease/utils/HealthCheck.class
+com/tagease/model/Tag.class
 module-info.class
 com/tagease/view/MainView.class
 com/tagease/controller/TagController.class

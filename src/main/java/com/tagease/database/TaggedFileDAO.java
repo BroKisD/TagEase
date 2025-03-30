@@ -10,10 +10,13 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import com.tagease.model.Tag;
 import com.tagease.model.TaggedFile;
 
 public class TaggedFileDAO {
@@ -24,6 +27,52 @@ public class TaggedFileDAO {
 
     public TaggedFileDAO(Connection connection) {
         this.connection = connection;
+        initializeDefaultTags();
+    }
+
+    /**
+     * Initializes the default system tags with their predefined colors.
+     */
+    private void initializeDefaultTags() {
+        try {
+            // Check if default tags exist
+            Set<String> existingTags = getAllTags();
+            
+            // Add default tags if they don't exist
+            if (!existingTags.contains(Tag.TAG_DONE)) {
+                addTag(new Tag(Tag.TAG_DONE, Tag.COLOR_DONE));
+            }
+            if (!existingTags.contains(Tag.TAG_IN_PROGRESS)) {
+                addTag(new Tag(Tag.TAG_IN_PROGRESS, Tag.COLOR_IN_PROGRESS));
+            }
+            if (!existingTags.contains(Tag.TAG_NEW)) {
+                addTag(new Tag(Tag.TAG_NEW, Tag.COLOR_NEW));
+            }
+            if (!existingTags.contains(Tag.TAG_MISSING)) {
+                addTag(new Tag(Tag.TAG_MISSING, Tag.COLOR_MISSING));
+            }
+            
+            // Update colors for default tags in case they already exist but don't have colors
+            updateTagColorIfNeeded(Tag.TAG_DONE, Tag.COLOR_DONE);
+            updateTagColorIfNeeded(Tag.TAG_IN_PROGRESS, Tag.COLOR_IN_PROGRESS);
+            updateTagColorIfNeeded(Tag.TAG_NEW, Tag.COLOR_NEW);
+            updateTagColorIfNeeded(Tag.TAG_MISSING, Tag.COLOR_MISSING);
+            
+        } catch (SQLException e) {
+            System.err.println("Failed to initialize default tags: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Updates the color of a tag if it doesn't have one.
+     */
+    private void updateTagColorIfNeeded(String tagName, String color) throws SQLException {
+        String sql = "UPDATE tags SET color = ? WHERE tag_name = ? AND (color IS NULL OR color = '')";
+        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
+            pstmt.setString(1, color);
+            pstmt.setString(2, tagName);
+            pstmt.executeUpdate();
+        }
     }
 
     private void validateTag(String tag) throws SQLException {
@@ -40,16 +89,16 @@ public class TaggedFileDAO {
 
     public void addFile(TaggedFile file, Set<String> existingTags) throws SQLException {
         String insertFileSql = "INSERT INTO files (file_path, file_name, created_at, last_accessed_at) VALUES (?, ?, ?, ?)";
-        String insertTagSql = "INSERT OR IGNORE INTO tags (tag_name) VALUES (?)";
+        String insertTagSql = "INSERT OR IGNORE INTO tags (tag_name, color) VALUES (?, ?)";
         String insertFileTagSql = "INSERT INTO file_tags (file_path, tag_id) SELECT ?, tag_id FROM tags WHERE tag_name = ?";
         String insertRelationshipSql = "INSERT INTO file_relationships (source_file_path, related_file_path) VALUES (?, ?)";
 
         connection.setAutoCommit(false);
         try {
             // Validate tags before adding
-            for (String tag : file.getTags()) {
-                if (!existingTags.contains(tag)) {
-                    validateTag(tag);
+            for (String tagName : file.getTags()) {
+                if (!existingTags.contains(tagName)) {
+                    validateTag(tagName);
                 }
             }
 
@@ -76,16 +125,18 @@ public class TaggedFileDAO {
             try (PreparedStatement tagStmt = connection.prepareStatement(insertTagSql);
                  PreparedStatement fileTagStmt = connection.prepareStatement(insertFileTagSql)) {
                 
-                for (String tag : file.getTags()) {
+                for (String tagName : file.getTags()) {
                     // Insert tag if it doesn't exist
-                    if (!existingTags.contains(tag)) {
-                        tagStmt.setString(1, tag);
+                    if (!existingTags.contains(tagName)) {
+                        Tag newTag = new Tag(tagName);
+                        tagStmt.setString(1, newTag.getName());
+                        tagStmt.setString(2, newTag.getColorHex());
                         tagStmt.executeUpdate();
                     }
 
                     // Create file-tag relationship
                     fileTagStmt.setString(1, file.getFilePath());
-                    fileTagStmt.setString(2, tag);
+                    fileTagStmt.setString(2, tagName);
                     fileTagStmt.executeUpdate();
                 }
             }
@@ -112,15 +163,15 @@ public class TaggedFileDAO {
 
     public void updateFileTags(TaggedFile file) throws SQLException {
         String deleteTagsSql = "DELETE FROM file_tags WHERE file_path = ?";
-        String insertTagSql = "INSERT OR IGNORE INTO tags (tag_name) VALUES (?)";
+        String insertTagSql = "INSERT OR IGNORE INTO tags (tag_name, color) VALUES (?, ?)";
         String insertFileTagSql = "INSERT INTO file_tags (file_path, tag_id) SELECT ?, tag_id FROM tags WHERE tag_name = ?";
         String updateAccessTimeSql = "UPDATE files SET last_accessed_at = ? WHERE file_path = ?";
 
         connection.setAutoCommit(false);
         try {
             // Validate tags before updating
-            for (String tag : file.getTags()) {
-                validateTag(tag);
+            for (String tagName : file.getTags()) {
+                validateTag(tagName);
             }
 
             // Delete existing tags
@@ -133,14 +184,16 @@ public class TaggedFileDAO {
             try (PreparedStatement tagStmt = connection.prepareStatement(insertTagSql);
                  PreparedStatement fileTagStmt = connection.prepareStatement(insertFileTagSql)) {
                 
-                for (String tag : file.getTags()) {
+                for (String tagName : file.getTags()) {
                     // Insert tag if it doesn't exist
-                    tagStmt.setString(1, tag);
+                    Tag newTag = new Tag(tagName);
+                    tagStmt.setString(1, newTag.getName());
+                    tagStmt.setString(2, newTag.getColorHex());
                     tagStmt.executeUpdate();
 
                     // Create file-tag relationship
                     fileTagStmt.setString(1, file.getFilePath());
-                    fileTagStmt.setString(2, tag);
+                    fileTagStmt.setString(2, tagName);
                     fileTagStmt.executeUpdate();
                 }
             }
@@ -242,18 +295,24 @@ public class TaggedFileDAO {
         return tags;
     }
 
-    public void deleteTag(String tag) throws SQLException {
+    public void deleteTag(String tagName) throws SQLException {
+        // Don't allow deleting system tags
+        Tag tag = new Tag(tagName);
+        if (tag.isSystemTag()) {
+            throw new SQLException("Cannot delete system tag: " + tagName);
+        }
+        
         // First delete all file-tag relationships
         String deleteRelationsSQL = "DELETE FROM file_tags WHERE tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?)";
         try (PreparedStatement pstmt = connection.prepareStatement(deleteRelationsSQL)) {
-            pstmt.setString(1, tag);
+            pstmt.setString(1, tagName);
             pstmt.executeUpdate();
         }
 
         // Then delete the tag itself
         String deleteTagSQL = "DELETE FROM tags WHERE tag_name = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(deleteTagSQL)) {
-            pstmt.setString(1, tag);
+            pstmt.setString(1, tagName);
             pstmt.executeUpdate();
         }
     }
@@ -314,20 +373,62 @@ public class TaggedFileDAO {
         return tags;
     }
 
-    public void addTag(String tag) throws SQLException {
-        String sql = "INSERT INTO tags (tag_name) VALUES (?)";
+    /**
+     * Adds a new tag to the database.
+     * 
+     * @param tag The tag to add
+     * @throws SQLException If an error occurs
+     */
+    public void addTag(Tag tag) throws SQLException {
+        validateTag(tag.getName());
+        
+        String sql = "INSERT OR IGNORE INTO tags (tag_name, color) VALUES (?, ?)";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, tag);
+            pstmt.setString(1, tag.getName());
+            pstmt.setString(2, tag.getColorHex());
             pstmt.executeUpdate();
         }
     }
-
-    public void removeTag(String tag) throws SQLException {
-        String sql = "DELETE FROM tags WHERE tag_name = ?";
+    
+    /**
+     * Updates the color of an existing tag.
+     * 
+     * @param tag The tag with updated color
+     * @throws SQLException If an error occurs
+     */
+    public void updateTagColor(Tag tag) throws SQLException {
+        String sql = "UPDATE tags SET color = ? WHERE tag_name = ?";
         try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, tag);
+            pstmt.setString(1, tag.getColorHex());
+            pstmt.setString(2, tag.getName());
             pstmt.executeUpdate();
         }
+    }
+    
+    /**
+     * Gets all tags with their colors.
+     * 
+     * @return A map of tag names to Tag objects
+     * @throws SQLException If an error occurs
+     */
+    public Map<String, Tag> getAllTagsWithColors() throws SQLException {
+        Map<String, Tag> tags = new HashMap<>();
+        String sql = "SELECT tag_name, color FROM tags";
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                String name = rs.getString("tag_name");
+                String color = rs.getString("color");
+                
+                // If color is null, create a new tag which will generate a random color
+                Tag tag = (color != null && !color.isEmpty()) 
+                    ? new Tag(name, color) 
+                    : new Tag(name);
+                
+                tags.put(name, tag);
+            }
+        }
+        return tags;
     }
 
     public List<String> getAllTagsList() throws SQLException {
