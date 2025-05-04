@@ -311,18 +311,49 @@ public class TaggedFileDAO {
             throw new SQLException("Cannot delete system tag: " + tagName);
         }
         
-        // First delete all file-tag relationships
-        String deleteRelationsSQL = "DELETE FROM file_tags WHERE tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?)";
-        try (PreparedStatement pstmt = connection.prepareStatement(deleteRelationsSQL)) {
-            pstmt.setString(1, tagName);
-            pstmt.executeUpdate();
-        }
-
-        // Then delete the tag itself
-        String deleteTagSQL = "DELETE FROM tags WHERE tag_name = ?";
-        try (PreparedStatement pstmt = connection.prepareStatement(deleteTagSQL)) {
-            pstmt.setString(1, tagName);
-            pstmt.executeUpdate();
+        // Save the current auto-commit state
+        boolean originalAutoCommit = connection.getAutoCommit();
+        
+        try {
+            // Disable auto-commit to start a transaction
+            connection.setAutoCommit(false);
+            
+            // First delete all file-tag relationships
+            String deleteRelationsSQL = "DELETE FROM file_tags WHERE tag_id = (SELECT tag_id FROM tags WHERE tag_name = ?)";
+            try (PreparedStatement pstmt = connection.prepareStatement(deleteRelationsSQL)) {
+                pstmt.setString(1, tagName);
+                int relationRowsAffected = pstmt.executeUpdate();
+                System.out.println("Deleted " + relationRowsAffected + " file-tag relationships for tag: " + tagName);
+            }
+    
+            // Then delete the tag itself
+            String deleteTagSQL = "DELETE FROM tags WHERE tag_name = ?";
+            try (PreparedStatement pstmt = connection.prepareStatement(deleteTagSQL)) {
+                pstmt.setString(1, tagName);
+                int tagRowsAffected = pstmt.executeUpdate();
+                System.out.println("Deleted " + tagRowsAffected + " tag entries for tag: " + tagName);
+            }
+            
+            // Commit the transaction
+            connection.commit();
+            System.out.println("Successfully deleted tag: " + tagName);
+            
+        } catch (SQLException e) {
+            // If there's an error, roll back the transaction
+            try {
+                connection.rollback();
+                System.err.println("Transaction rolled back due to error: " + e.getMessage());
+            } catch (SQLException rollbackEx) {
+                System.err.println("Failed to roll back transaction: " + rollbackEx.getMessage());
+            }
+            throw e; // Re-throw the original exception
+        } finally {
+            // Restore the original auto-commit state
+            try {
+                connection.setAutoCommit(originalAutoCommit);
+            } catch (SQLException autoCommitEx) {
+                System.err.println("Failed to restore auto-commit state: " + autoCommitEx.getMessage());
+            }
         }
     }
 
@@ -391,14 +422,72 @@ public class TaggedFileDAO {
     public void addTag(Tag tag) throws SQLException {
         validateTag(tag.getName());
         
-        String sql = "INSERT OR IGNORE INTO tags (tag_name, color) VALUES (?, ?)";
-        try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-            pstmt.setString(1, tag.getName());
-            pstmt.setString(2, tag.getColorHex());
-            pstmt.executeUpdate();
+        // Check if the tag already exists
+        boolean tagExists = false;
+        String checkSql = "SELECT COUNT(*) FROM tags WHERE tag_name = ?";
+        try (PreparedStatement checkStmt = connection.prepareStatement(checkSql)) {
+            checkStmt.setString(1, tag.getName());
+            try (ResultSet rs = checkStmt.executeQuery()) {
+                if (rs.next() && rs.getInt(1) > 0) {
+                    tagExists = true;
+                    System.out.println("Tag already exists: " + tag.getName());
+                }
+            }
+        }
+        
+        // Save the current auto-commit state
+        boolean originalAutoCommit = connection.getAutoCommit();
+        
+        try {
+            // Disable auto-commit to start a transaction
+            connection.setAutoCommit(false);
+            
+            if (tagExists) {
+                // If it's a system tag, update its color to ensure consistency
+                if (tag.isSystemTag()) {
+                    String updateSql = "UPDATE tags SET color = ? WHERE tag_name = ?";
+                    try (PreparedStatement updateStmt = connection.prepareStatement(updateSql)) {
+                        updateStmt.setString(1, tag.getColorHex());
+                        updateStmt.setString(2, tag.getName());
+                        int rowsUpdated = updateStmt.executeUpdate();
+                        System.out.println("Updated system tag color: " + tag.getName() + ", rows affected: " + rowsUpdated);
+                    }
+                }
+                // For non-system tags, we keep the existing color
+            } else {
+                // Insert the new tag
+                String insertSql = "INSERT INTO tags (tag_name, color) VALUES (?, ?)";
+                try (PreparedStatement insertStmt = connection.prepareStatement(insertSql)) {
+                    insertStmt.setString(1, tag.getName());
+                    insertStmt.setString(2, tag.getColorHex());
+                    int rowsInserted = insertStmt.executeUpdate();
+                    System.out.println("Inserted new tag: " + tag.getName() + ", rows affected: " + rowsInserted);
+                }
+            }
+            
+            // Commit the transaction
+            connection.commit();
+            System.out.println("Successfully added/updated tag: " + tag.getName());
+            
+        } catch (SQLException e) {
+            // If there's an error, roll back the transaction
+            try {
+                connection.rollback();
+                System.err.println("Transaction rolled back due to error: " + e.getMessage());
+            } catch (SQLException rollbackEx) {
+                System.err.println("Failed to roll back transaction: " + rollbackEx.getMessage());
+            }
+            throw e; // Re-throw the original exception
+        } finally {
+            // Restore the original auto-commit state
+            try {
+                connection.setAutoCommit(originalAutoCommit);
+            } catch (SQLException autoCommitEx) {
+                System.err.println("Failed to restore auto-commit state: " + autoCommitEx.getMessage());
+            }
         }
     }
-    
+
     /**
      * Updates the color of an existing tag.
      * 

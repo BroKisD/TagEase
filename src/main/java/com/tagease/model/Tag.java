@@ -131,6 +131,19 @@ public class Tag {
                TAG_MISSING.equals(name);
     }
     
+    /**
+     * Static method to check if a tag name is a system tag that cannot be deleted.
+     * 
+     * @param tagName The tag name to check
+     * @return true if this is a system tag, false otherwise
+     */
+    public static boolean isSystemTag(String tagName) {
+        return TAG_DONE.equals(tagName) || 
+               TAG_IN_PROGRESS.equals(tagName) || 
+               TAG_NEW.equals(tagName) || 
+               TAG_MISSING.equals(tagName);
+    }
+    
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;

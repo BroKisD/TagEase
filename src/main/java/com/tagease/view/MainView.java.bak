@@ -41,6 +41,7 @@ public class MainView {
     private FlowPane selectedTagsPane;
     private VBox fileListContainer;
     private ListView<Object> tagFilterBox;
+    private ComboBox<String> tagComboBox; // Added field to store tag filter dropdown reference
     private String searchTerm = "";
     private String searchOption = "File Name";
 
@@ -205,6 +206,7 @@ public class MainView {
                     if (tagFilterBox != null) {
                         updateTagFilterBox();
                     }
+                    refreshTagFilterDropdown(); // Refresh the tag filter dropdown
                 } catch (Exception ex) {
                     showErrorDialog("Error", "Failed to add tag", ex.getMessage());
                 }
@@ -246,6 +248,7 @@ public class MainView {
                 if (tagFilterBox != null) {
                     updateTagFilterBox();
                 }
+                refreshTagFilterDropdown(); // Refresh the tag filter dropdown
             }
         });
         removeTagBox.getChildren().addAll(tagSelector, removeTagButton);
@@ -362,23 +365,14 @@ public class MainView {
                             }
                         };
                         
-                        // Prevent selection if the list is empty or index is invalid
+                        // Prevent selection if the list is empty
                         cell.setOnMousePressed(event -> {
-                            if (tagFilterBox.getItems().isEmpty() || cell.getIndex() < 0 || cell.getIndex() >= tagFilterBox.getItems().size()) {
+                            if (tagFilterBox.getItems().isEmpty()) {
                                 event.consume(); // Prevent the event from propagating
                             }
                         });
                         
                         return cell;
-                    });
-                    
-                    // Disable selection model to prevent IndexOutOfBoundsException
-                    tagFilterBox.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
-                    tagFilterBox.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-                        // If we try to select an item in an empty list, clear selection
-                        if (newVal != null && tagFilterBox.getItems().isEmpty()) {
-                            Platform.runLater(() -> tagFilterBox.getSelectionModel().clearSelection());
-                        }
                     });
                 } catch (Exception ex) {
                     System.err.println("Error updating tag filter box: " + ex.getMessage());
@@ -488,7 +482,7 @@ public class MainView {
         tagLabel.getStyleClass().add("field-label");
         
         // Enhanced tag dropdown
-        ComboBox<String> tagComboBox = new ComboBox<>();
+        tagComboBox = new ComboBox<>(); // Store reference in class field
         tagComboBox.setPromptText("Select a tag");
         tagComboBox.getStyleClass().add("combo-box");
         HBox.setHgrow(tagComboBox, Priority.ALWAYS);
@@ -734,88 +728,44 @@ public class MainView {
         content.setPadding(new Insets(20));
         content.getStyleClass().add("custom-dialog");
 
-        // Create a set to track the current tags (will be modified when removing tags)
-        final Set<String> fileTags = new HashSet<>(file.getTags());
-        
         // Current tags section
         Label currentTagsLabel = new Label("Current Tags:");
         currentTagsLabel.getStyleClass().add("section-label");
 
-        // Create the FlowPane for current tags
-        final FlowPane currentTagsPane = new FlowPane();
+        FlowPane currentTagsPane = new FlowPane();
         currentTagsPane.setHgap(8);
         currentTagsPane.setVgap(8);
         currentTagsPane.setPadding(new Insets(5));
-        
-        // Method to update the current tags display
-        class TagsUpdater {
-            void updateCurrentTagsDisplay() {
-                currentTagsPane.getChildren().clear();
-                
-                if (fileTags.isEmpty()) {
-                    Label noTagsLabel = new Label("No tags assigned");
-                    noTagsLabel.getStyleClass().add("no-tags-selected");
-                    currentTagsPane.getChildren().add(noTagsLabel);
-                    return;
-                }
-                
-                for (String tagName : fileTags) {
-                    // Get tag color
-                    Tag tag = tagColorMap.get(tagName);
-                    String colorHex = (tag != null) ? tag.getColorHex() : "#2196F3"; // Default blue
-                    
-                    HBox tagBox = new HBox(5);
-                    tagBox.setAlignment(Pos.CENTER_LEFT);
-                    tagBox.getStyleClass().add("selected-tag");
-                    
-                    // Apply the tag's specific color (with 20% opacity for background)
-                    tagBox.setStyle("-fx-background-color: " + colorHex + "33;"); // 33 = 20% opacity
-                    
-                    Label tagLabel = new Label(tagName);
-                    tagLabel.setStyle("-fx-text-fill: " + colorHex + ";");
-                    
-                    Button removeButton = new Button("×");
-                    removeButton.getStyleClass().add("remove-tag-button");
-                    removeButton.setMinSize(16, 16);
-                    removeButton.setPrefSize(16, 16);
-                    removeButton.setMaxSize(16, 16);
-                    removeButton.setPadding(new Insets(0, 0, 0, 0));
-                    removeButton.setStyle("-fx-font-size: 1px;");
-                    
-                    // Use a final variable for the tag name to use in lambda
-                    final String tagToRemove = tagName;
-                    removeButton.setOnAction(e -> {
-                        fileTags.remove(tagToRemove);
-                        updateCurrentTagsDisplay();
-                    });
-                    
-                    tagBox.getChildren().addAll(tagLabel, removeButton);
-                    currentTagsPane.getChildren().add(tagBox);
-                }
-            }
-        }
-        
-        // Create the updater and initialize the display
-        final TagsUpdater tagsUpdater = new TagsUpdater();
-        tagsUpdater.updateCurrentTagsDisplay();
 
-        // Add new tags section
-        Label addTagsLabel = new Label("Add New Tags:");
-        addTagsLabel.getStyleClass().add("section-label");
-        
-        TextField newTagField = new TextField();
-        newTagField.setPromptText("Type a new tag and press Enter");
-        newTagField.setPrefHeight(35);
-        
-        // Handle adding new tags with Enter key
-        newTagField.setOnAction(e -> {
-            String newTag = newTagField.getText().trim();
-            if (!newTag.isEmpty()) {
-                fileTags.add(newTag);
-                newTagField.clear();
-                tagsUpdater.updateCurrentTagsDisplay();
+        Set<String> fileTags = new HashSet<>(file.getTags());
+        for (String tagName : fileTags) {
+            // Get tag color
+            Tag tag = tagColorMap.get(tagName);
+            String colorHex = (tag != null) ? tag.getColorHex() : "#2196F3"; // Default blue
+            
+            Label tagLabel = new Label(tagName);
+            tagLabel.getStyleClass().add("tag-pill");
+            
+            // Apply the tag's specific color
+            tagLabel.setStyle("-fx-background-color: " + colorHex + ";");
+            
+            // For dark colors, use white text; for light colors, use dark text
+            if (tag != null && isColorDark(tag.getColor())) {
+                tagLabel.setTextFill(javafx.scene.paint.Color.WHITE);
+            } else {
+                tagLabel.setTextFill(javafx.scene.paint.Color.rgb(33, 33, 33));
             }
-        });
+            
+            currentTagsPane.getChildren().add(tagLabel);
+        }
+
+        // Edit tags section
+        Label editTagsLabel = new Label("Edit Tags (comma-separated):");
+        editTagsLabel.getStyleClass().add("section-label");
+
+        TextField tagsField = new TextField();
+        tagsField.setText(String.join(", ", fileTags));
+        tagsField.setPrefHeight(35);
 
         // Available tags section
         Label availableTagsLabel = new Label("Available Tags:");
@@ -839,13 +789,11 @@ public class MainView {
             // Apply the tag's specific color
             tagButton.setStyle("-fx-text-fill: " + colorHex + "; -fx-border-color: " + colorHex + ";");
             
-            // Use a final variable for the tag name to use in lambda
-            final String tagToAdd = tagName;
             tagButton.setOnAction(e -> {
-                // Add the tag if it's not already in the file tags
-                if (!fileTags.contains(tagToAdd)) {
-                    fileTags.add(tagToAdd);
-                    tagsUpdater.updateCurrentTagsDisplay();
+                String currentTags = tagsField.getText();
+                // Check if tag is already in the list
+                if (!currentTags.contains(tagName)) {
+                    tagsField.setText(currentTags.isEmpty() ? tagName : currentTags + ", " + tagName);
                 }
             });
             availableTagsPane.getChildren().add(tagButton);
@@ -853,7 +801,7 @@ public class MainView {
 
         content.getChildren().addAll(
             currentTagsLabel, currentTagsPane,
-            addTagsLabel, newTagField,
+            editTagsLabel, tagsField,
             availableTagsLabel, availableTagsPane
         );
 
@@ -874,8 +822,20 @@ public class MainView {
         // Set the result converter
         dialog.setResultConverter(buttonType -> {
             if (buttonType == saveButton) {
-                // Update the file's tags with the modified set
-                file.setTags(fileTags);
+                // Parse the tags from the text field
+                Set<String> newTags = new HashSet<>();
+                String inputTags = tagsField.getText();
+                if (!inputTags.trim().isEmpty()) {
+                    for (String tag : inputTags.split(",")) {
+                        String trimmedTag = tag.trim();
+                        if (!trimmedTag.isEmpty()) {
+                            newTags.add(trimmedTag);
+                        }
+                    }
+                }
+
+                // Update the file's tags
+                file.setTags(newTags);
                 controller.updateFileTags(file);
                 refreshTable();
             }
@@ -888,49 +848,83 @@ public class MainView {
 
     private void refreshTable() {
         // Skip if still initializing
-        if (isInitializing && fileListContainer == null) {
-            return;
-        }
         
-        // Get all files from the controller
-        List<TaggedFile> allFiles = controller.getAllFiles();
-        
-        // Create a temporary list for filtering
-        List<TaggedFile> filteredFiles = new ArrayList<>();
-        
-        // Filter files based on search term and selected tags
-        for (TaggedFile file : allFiles) {
-            if (matchesSearchCriteria(file) && isFileMatchingFilters(file)) {
-                filteredFiles.add(file);
-            }
-        }
-        
-        // Apply current sort
-        sortFileList(filteredFiles, currentSortOption, currentSortAscending);
-        
-        // Update the UI
-        updateFileListDisplay(filteredFiles);
-        
-        // Make sure to update the selected tags display
-        updateSelectedTagsDisplay();
-    }
-    
-    private void updateFileListDisplay(List<TaggedFile> filesToDisplay) {
-        // Run on JavaFX thread to avoid concurrency issues
-        Platform.runLater(() -> {
-            fileListContainer.getChildren().clear();
-            
-            if (filesToDisplay.isEmpty()) {
-                Label noFilesLabel = new Label("No files found.");
-                noFilesLabel.getStyleClass().add("no-files-label");
-                fileListContainer.getChildren().add(noFilesLabel);
-            } else {
-                for (TaggedFile file : filesToDisplay) {
-                    TitledPane filePanel = createFilePanel(file);
-                    fileListContainer.getChildren().add(filePanel);
+content.getChildren().addAll(tagsLabel, tagsField, suggestionsLabel, tagSuggestions);
+dialogPane.setContent(content);
+
+// Add buttons
+ButtonType addButton = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
+ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+dialogPane.getButtonTypes().addAll(addButton, cancelButton);
+
+// Style the buttons
+Button addButtonNode = (Button) dialogPane.lookupButton(addButton);
+addButtonNode.getStyleClass().add("ok-button");
+
+Button cancelButtonNode = (Button) dialogPane.lookupButton(cancelButton);
+cancelButtonNode.getStyleClass().add("cancel-button");
+
+// Set the result converter
+dialog.setResultConverter(buttonType -> {
+    if (buttonType == addButton) {
+        Set<String> tags = new HashSet<>();
+        String inputTags = tagsField.getText();
+        if (inputTags.trim().isEmpty()) {
+            tags.add(DEFAULT_TAG);
+        } else {
+            for (String tag : inputTags.split(",")) {
+                String trimmedTag = tag.trim();
+                if (!trimmedTag.isEmpty()) {
+                    tags.add(trimmedTag);
                 }
             }
-        });
+        }
+        return new TaggedFile(file.getName(), file.getAbsolutePath(), tags);
+    }
+    return null;
+});
+
+Optional<TaggedFile> result = dialog.showAndWait();
+result.ifPresent(taggedFile -> {
+    try {
+        controller.addFile(taggedFile, existingTags);
+        refreshTable();
+        refreshTagFilterDropdown(); // Call the new method
+    } catch (RuntimeException e) {
+        showErrorDialog("Error", "Failed to add file", e.getMessage());
+    }
+});
+
+// ... (rest of the code remains the same)
+
+    /**
+     * Refreshes the tag filter dropdown with the current list of tags.
+     * This should be called whenever tags are added or removed.
+     */
+    private void refreshTagFilterDropdown() {
+        try {
+            Platform.runLater(() -> {
+                // Find the tag filter dropdown in the search section
+                if (tagComboBox != null) {
+                    // Get the current selection
+                    String currentSelection = tagComboBox.getValue();
+                    
+                    // Get all tags from the controller
+                    Set<String> allTags = controller.getAllTags();
+                    
+                    // Update the items
+                    tagComboBox.setItems(FXCollections.observableArrayList(allTags));
+                    
+                    // Restore the selection if it still exists
+                    if (currentSelection != null && allTags.contains(currentSelection)) {
+                        tagComboBox.setValue(currentSelection);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            System.err.println("Error refreshing tag filter dropdown: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
     
     private void sortFiles(String sortOption, boolean ascending) {
