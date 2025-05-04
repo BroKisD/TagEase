@@ -180,15 +180,24 @@ public class TaggedFileDAO {
                 pstmt.executeUpdate();
             }
 
+            // Get all existing tags with their colors
+            Map<String, Tag> existingTags = getAllTagsWithColors();
+
             // Insert new tags
             try (PreparedStatement tagStmt = connection.prepareStatement(insertTagSql);
                  PreparedStatement fileTagStmt = connection.prepareStatement(insertFileTagSql)) {
                 
                 for (String tagName : file.getTags()) {
-                    // Insert tag if it doesn't exist
-                    Tag newTag = new Tag(tagName);
-                    tagStmt.setString(1, newTag.getName());
-                    tagStmt.setString(2, newTag.getColorHex());
+                    // Use existing tag if available, otherwise create a new one
+                    Tag tag;
+                    if (existingTags.containsKey(tagName)) {
+                        tag = existingTags.get(tagName);
+                    } else {
+                        tag = new Tag(tagName);
+                    }
+                    
+                    tagStmt.setString(1, tag.getName());
+                    tagStmt.setString(2, tag.getColorHex());
                     tagStmt.executeUpdate();
 
                     // Create file-tag relationship

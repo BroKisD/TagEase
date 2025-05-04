@@ -21,8 +21,10 @@ import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -889,12 +891,12 @@ public class MainView {
         } else {
             deleteFileButton.setText("🗑️");
         }
-        deleteFileButton.setTooltip(new Tooltip("Delete"));
+        deleteFileButton.setTooltip(new Tooltip("Remove"));
         deleteFileButton.setOnAction(e -> {
             Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
-            alert.setTitle("Delete File");
-            alert.setHeaderText("Delete " + file.getFileName());
-            alert.setContentText("Are you sure you want to delete this file from the system?");
+            alert.setTitle("Remove File");
+            alert.setHeaderText("Remove " + file.getFileName());
+            alert.setContentText("Are you sure you want to remove this file from the system?");
             
             Optional<ButtonType> result = alert.showAndWait();
             if (result.isPresent() && result.get() == ButtonType.OK) {
@@ -1025,7 +1027,16 @@ public class MainView {
                 if (System.getProperty("os.name").toLowerCase().contains("win")) {
                     new ProcessBuilder("cmd", "/c", fileToOpen.getAbsolutePath()).start();
                 } else {
-                    new ProcessBuilder("xdg-open", fileToOpen.getAbsolutePath()).start();
+                    ProcessBuilder pb = new ProcessBuilder("xdg-open", fileToOpen.getAbsolutePath());
+                    pb.redirectErrorStream(true);
+                    Process process = pb.start();
+
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        System.out.println("xdg-open output: " + line);
+        }
+;
                 }
             } else {
                 showErrorDialog("File Not Found", 

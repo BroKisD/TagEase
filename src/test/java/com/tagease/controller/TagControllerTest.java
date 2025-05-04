@@ -118,7 +118,7 @@ public class TagControllerTest {
         // Act
         List<TaggedFile> actualFiles = controller.getAllFiles();
         
-        // Assert
+        //
         assertEquals(expectedFiles, actualFiles);
         verify(mockFileDAO).getAllFiles();
     }
