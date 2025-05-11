@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# This script creates a Linux DEB installer for TagEase
+# This script creates a Windows installer for TagEase
 
 # Ensure we have the JAR file
 if [ ! -f "target/TagEase-1.0.jar" ]; then
@@ -23,17 +23,14 @@ fi
 # Create a directory for the installer files
 mkdir -p installer
 
-# Make the run script executable
-chmod +x run-tagease.sh
-
-# Create a Linux installer (DEB package)
-echo "Creating Linux DEB installer..."
+# Create Windows MSI installer using jpackage
+echo "Creating Windows MSI installer..."
 jpackage \
   --input target/image/lib \
   --name TagEase \
   --main-jar TagEase-1.0.jar \
   --main-class com.tagease.App \
-  --type deb \
+  --type msi \
   --icon src/main/resources/Image/hash_12080727.png \
   --app-version 1.0 \
   --vendor "TagEase" \

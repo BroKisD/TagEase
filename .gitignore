@@ -1,0 +1,30 @@
+# Ignore installer files
+installer/
+*.deb
+*.msi
+*.exe
+*.rpm
+
+# Ignore build artifacts
+target/
+build/
+out/
+
+# Ignore database files
+*.db
+*.db-journal
+
+# Java and Maven specific ignores
+.classpath
+.project
+.settings/
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+dependency-reduced-pom.xml
+
+# Logs
+*.log
+logs/

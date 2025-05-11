@@ -114,15 +114,10 @@ public class MainView {
         
         // Load custom styles with specific exception handling
         try {
-            File cssFile = new File("src/main/resources/styles.css");
-            if (cssFile.exists()) {
-                String cssPath = cssFile.toURI().toURL().toExternalForm();
-                scene.getStylesheets().add(cssPath);
-            } else {
-                System.err.println("CSS file not found at: " + cssFile.getAbsolutePath());
-            }
-        } catch (MalformedURLException | SecurityException e) {
-            System.err.println("Failed to load CSS - " + e.getMessage());
+            String cssPath = getClass().getResource("/styles.css").toExternalForm();
+            scene.getStylesheets().add(cssPath);
+        } catch (Exception e) {
+            System.err.println("Failed to load CSS: " + e.getMessage());
             e.printStackTrace();
         }
         
@@ -440,7 +435,7 @@ public class MainView {
         searchBox.getStyleClass().add("control-section");
         
         // Search icon
-        ImageView searchIcon = createIcon("src/main/resources/Image/magnifier_868231.png", 24);
+        ImageView searchIcon = createIcon("/Image/magnifier_868231.png", 24);
         Label searchLabel;
         if (searchIcon != null) {
             searchLabel = new Label("Search:", searchIcon);
@@ -474,7 +469,7 @@ public class MainView {
         HBox.setHgrow(filterBox, Priority.SOMETIMES);
         
         // Filter icon
-        ImageView filterIcon = createIcon("src/main/resources/Image/filter_679890.png", 24);
+        ImageView filterIcon = createIcon("/Image/filter_679890.png", 24);
         Label filterLabel;
         if (filterIcon != null) {
             filterLabel = new Label("Filters:", filterIcon);
@@ -526,7 +521,7 @@ public class MainView {
         HBox.setHgrow(sortBox, Priority.SOMETIMES);
         
         // Sort icon
-        ImageView sortIcon = createIcon("src/main/resources/Image/swap_5296690.png", 24);
+        ImageView sortIcon = createIcon("/Image/swap_5296690.png", 24);
         Label sortLabel;
         if (sortIcon != null) {
             sortLabel = new Label("Sort by:", sortIcon);
@@ -1006,7 +1001,7 @@ public class MainView {
         editTagsButton.setPrefSize(30, 30);
         editTagsButton.setMinSize(30, 30);
         editTagsButton.setMaxSize(30, 30);
-        ImageView editIcon = createIcon("src/main/resources/Image/pencil_505210.png", 16);
+        ImageView editIcon = createIcon("/Image/pencil_505210.png", 16);
         if (editIcon != null) {
             editTagsButton.setGraphic(editIcon);
         } else {
@@ -1021,7 +1016,7 @@ public class MainView {
         openFileButton.setPrefSize(30, 30);
         openFileButton.setMinSize(30, 30);
         openFileButton.setMaxSize(30, 30);
-        ImageView openIcon = createIcon("src/main/resources/Image/folder_3767084.png", 16);
+        ImageView openIcon = createIcon("/Image/folder_3767084.png", 16);
         if (openIcon != null) {
             openFileButton.setGraphic(openIcon);
         } else {
@@ -1036,7 +1031,7 @@ public class MainView {
         deleteFileButton.setPrefSize(30, 30);
         deleteFileButton.setMinSize(30, 30);
         deleteFileButton.setMaxSize(30, 30);
-        ImageView deleteIcon = createIcon("src/main/resources/Image/trash_1161747.png", 16);
+        ImageView deleteIcon = createIcon("/Image/trash_1161747.png", 16);
         if (deleteIcon != null) {
             deleteFileButton.setGraphic(deleteIcon);
         } else {
@@ -1300,18 +1295,12 @@ public class MainView {
     // Helper method to create an ImageView from an image file
     private ImageView createIcon(String imagePath, int size) {
         try {
-            File iconFile = new File(imagePath);
-            if (iconFile.exists()) {
-                Image image = new Image(iconFile.toURI().toString());
-                ImageView imageView = new ImageView(image);
-                imageView.setFitHeight(size);
-                imageView.setFitWidth(size);
-                imageView.setPreserveRatio(true);
-                return imageView;
-            } else {
-                System.err.println("Icon not found: " + imagePath);
-                return null;
-            }
+            Image image = new Image(getClass().getResourceAsStream(imagePath));
+            ImageView imageView = new ImageView(image);
+            imageView.setFitHeight(size);
+            imageView.setFitWidth(size);
+            imageView.setPreserveRatio(true);
+            return imageView;
         } catch (Exception e) {
             System.err.println("Failed to load icon: " + e.getMessage());
             return null;
@@ -1391,7 +1380,7 @@ public class MainView {
         Button addFileButton = new Button("Add File");
         addFileButton.getStyleClass().add("sidebar-button");
         addFileButton.setMaxWidth(Double.MAX_VALUE);
-        ImageView addFileIcon = createIcon("src/main/resources/Image/file_338043.png", 24);
+        ImageView addFileIcon = createIcon("/Image/file_338043.png", 24);
         if (addFileIcon != null) {
             addFileButton.setGraphic(addFileIcon);
             addFileButton.setGraphicTextGap(10);
@@ -1402,7 +1391,7 @@ public class MainView {
         Button manageTagsButton = new Button("Manage Tags");
         manageTagsButton.getStyleClass().add("sidebar-button");
         manageTagsButton.setMaxWidth(Double.MAX_VALUE);
-        ImageView manageTagsIcon = createIcon("src/main/resources/Image/file_1346913.png", 24);
+        ImageView manageTagsIcon = createIcon("/Image/file_1346913.png", 24);
         if (manageTagsIcon != null) {
             manageTagsButton.setGraphic(manageTagsIcon);
             manageTagsButton.setGraphicTextGap(10);

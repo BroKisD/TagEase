@@ -170,6 +170,49 @@ jobs:
         report_paths: '**/target/surefire-reports/TEST-*.xml'
 ```
 
+## Performance Testing
+
+### Database Test Data Generator
+
+TagEase includes a utility for generating test data to evaluate application performance with large datasets:
+
+```
+src/main/java/com/tagease/utils/DatabaseTestDataGenerator.java
+```
+
+This utility creates simulated files with random properties:
+- Random file names with various extensions (.txt, .pdf, .doc, .jpg, etc.)
+- Random file paths with subdirectories
+- Random tags (including system tags and custom tags)
+- Randomized creation and last accessed dates
+
+#### Running the Test Data Generator
+
+A convenience script is provided to run the generator:
+
+```bash
+./generate-test-data.sh
+```
+
+By default, this generates 100 test files. You can specify a different number as a parameter:
+
+```bash
+./generate-test-data.sh 500  # Generates 500 files
+```
+
+#### Performance Metrics
+
+The generator reports the time taken to add files to the database, which can be used to:
+
+1. Measure database insertion performance
+2. Test application responsiveness with large datasets
+3. Evaluate sorting and filtering performance with many files
+4. Identify potential bottlenecks in the UI rendering with extensive data
+
+#### Example Results
+
+On a standard development machine, the generator can add 1000 files in approximately 3-4 seconds, demonstrating the efficiency of the SQLite database implementation.
+
 ## Troubleshooting
 
 ### Common Issues
